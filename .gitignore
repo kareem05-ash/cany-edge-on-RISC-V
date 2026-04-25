@@ -1,4 +1,5 @@
 hello
 .vscode/
 rvv-tst
-
+build/
+*.raw
