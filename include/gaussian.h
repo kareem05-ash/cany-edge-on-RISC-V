@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GAUSSIAN_H
+#define GAUSSIAN_H
 
 #include "img_io.h"
 #include <cstdint>
@@ -46,3 +47,4 @@ void convolve2d(
 }
 
 void gaussian_blur(const Image& src, Image& dst);
+#endif // GAUSSIAN_H
