@@ -1,4 +1,5 @@
-#pragma once
+#ifndef IMG_IO_H
+#define IMG_IO_H
 
 #include <cstdint>
 #include <cstdlib>
@@ -45,7 +46,7 @@ class Image {
             return data[y * width + x];
         }
 
-        // Pixel access - read only: unint8_t val = img(y, x);
+        // Pixel access - read only: uint8_t val = img(y, x);
         const uint8_t& operator()(int y, int x) const {
             return data[y * width + x];
         }
@@ -55,7 +56,6 @@ class Image {
             return width * height;
         }
 };
-
 
 // Load raw grayscale image from file
 Image load_img(const char* path, int width, int height);
