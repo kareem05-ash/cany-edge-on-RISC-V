@@ -54,7 +54,7 @@ TEST(Sobel_Test, VE) {
     delete[] Gx;
     delete[] Gy;
 }
-//===========================TEST2: Horizontal Edge====================================
+//===========================TEST3: Horizontal Edge====================================
 TEST(Sobel_Test, HE) {
 
     const int W = 64, H = 64;
@@ -80,7 +80,7 @@ TEST(Sobel_Test, HE) {
     delete[] Gx;
     delete[] Gy;
 }
-//===========================TEST2: Diagonal Edge====================================
+//===========================TEST4: Diagonal Edge====================================
 TEST(Sobel_Test, DE) {
 
     const int W = 64, H = 64;
