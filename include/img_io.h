@@ -1,6 +1,6 @@
-// #ifndef IMG_IO_H
-// #define IMG_IO_H
-#pragma once
+#ifndef IMG_IO_H
+#define IMG_IO_H
+
 #include <cstdint>
 #include <cstdlib>
 
@@ -62,3 +62,5 @@ Image load_img(const char* path, int width, int height);
 
 // Store raw grayscale image to file
 void save_img(const char* path, const Image& img);
+
+#endif
