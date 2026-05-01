@@ -42,13 +42,14 @@ run_all: canny_rv
 	@echo "=== VLEN=512 ===" && qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/canny
 
 # Build and run GoogleTest suite on host
-test: src/img_io.cpp tsts/tst_img_io.cpp
+test: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+      tsts/tst_img_io.cpp tsts/tst_gaussian.cpp tsts/tst_sobel.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_img_io \
+		$^ -o $(BLD_HOST)/tst_all \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_img_io
+	./$(BLD_HOST)/tst_all
 
 # Clean all build artifacts
 clean:
