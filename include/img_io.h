@@ -1,6 +1,6 @@
-#ifndef IMG_IO_H
-#define IMG_IO_H
-
+// #ifndef IMG_IO_H
+// #define IMG_IO_H
+#pragma once
 #include <cstdint>
 #include <cstdlib>
 

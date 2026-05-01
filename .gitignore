@@ -3,3 +3,6 @@ hello
 rvv-tst
 build/
 *.raw
+src/tmp_main.cpp
+docs/
+imgs/
