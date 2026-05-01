@@ -51,13 +51,15 @@ run_host: $(PIPELINE) src/main.cpp
 
 # ─── Individual test targets ──────────────────────────────────────────────────
 
-tst_img_io: $(COMMON) tsts/tst_img_io.cpp
+# Build and run GoogleTest suite on host
+test: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+      tsts/tst_img_io.cpp tsts/tst_gaussian.cpp tsts/tst_sobel.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_img_io \
+		$^ -o $(BLD_HOST)/tst_all \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_img_io
+	./$(BLD_HOST)/tst_all
 
 tst_gaussian: $(COMMON) src/gaussian.cpp tsts/tst_gaussian.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
