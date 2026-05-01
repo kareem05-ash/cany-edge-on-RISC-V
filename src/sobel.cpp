@@ -42,7 +42,6 @@ void sobel (const Image& src, int16_t* Gx, int16_t* Gy){
          Gx[y *src.width + x] = gx;                                                 // Store Gx in SOA
          Gy[y *src.width + x] = gy;                                                 // Store Gy in SOA
         }  
-
     }
 }
 
