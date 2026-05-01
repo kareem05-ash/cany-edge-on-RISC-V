@@ -62,3 +62,5 @@ Image load_img(const char* path, int width, int height);
 
 // Store raw grayscale image to file
 void save_img(const char* path, const Image& img);
+
+#endif
