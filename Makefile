@@ -1,28 +1,34 @@
 # ─── Compilers ───────────────────────────────────────────────────────────────
-HOST_CXX   := g++
-RV_CXX     := riscv64-unknown-elf-g++
+HOST_CXX   	:= g++
+RV_CXX     	:= riscv64-unknown-elf-g++
 
 # ─── Flags ───────────────────────────────────────────────────────────────────
-HOST_FLAGS := -std=c++17 -Wall -Wextra -O2
-RV_FLAGS   := -std=c++17 -Wall -Wextra -march=rv64gcv -static
+HOST_FLAGS 	:= -std=c++17 -Wall -Wextra -O2
+RV_FLAGS   	:= -std=c++17 -Wall -Wextra -march=rv64gcv -static
 
 # ─── Directories ─────────────────────────────────────────────────────────────
-SRC_DIR    := src
-TST_DIR    := tsts
-INC_DIR    := include
-BLD_HOST   := build/host
-BLD_RV     := build/riscv
+SRC_DIR    	:= src
+TST_DIR    	:= tsts
+INC_DIR    	:= include
+BLD_HOST   	:= build/host
+BLD_RV     	:= build/riscv
+
+# ─── Variables ─────────────────────────────────────────────────────────────
+IMG_NAME	?= 'input_img'
+W          	?= 256
+H          	?= 256
 
 # ─── GoogleTest ──────────────────────────────────────────────────────────────
-GTEST_INC  := $(HOME)/googletest-install/include
-GTEST_LIB  := $(HOME)/googletest-install/lib
-GTEST_LINK := -lgtest -lgtest_main -pthread
+GTEST_INC  	:= $(HOME)/googletest-install/include
+GTEST_LIB  	:= $(HOME)/googletest-install/lib
+GTEST_LINK 	:= -lgtest -lgtest_main -pthread
 
 # ─── Shared sources (needed by all tests) ────────────────────────────────────
-COMMON     := src/img_io.cpp
+COMMON     	:= src/img_io.cpp
 
 # ─── Pipeline sources ─────────────────────────────────────────────────────────
-PIPELINE   := src/img_io.cpp src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp
+PIPELINE   	:= src/img_io.cpp src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp \
+				utils/gen_imgs.cpp utils/img_uitls.cpp
 
 # ─── Targets ─────────────────────────────────────────────────────────────────
 
@@ -47,19 +53,11 @@ run_all: canny_rv
 run_host: $(PIPELINE) src/main.cpp
 	$(HOST_CXX) $(HOST_FLAGS) -I$(INC_DIR) \
 		$^ -o $(BLD_HOST)/canny_host
-	./$(BLD_HOST)/canny_host imgs
+	./$(BLD_HOST)/canny_host $(IMG_NAME) $(W) $(H)
 
 # ─── Individual test targets ──────────────────────────────────────────────────
 
 # Build and run GoogleTest suite on host
-test: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-      tsts/tst_img_io.cpp tsts/tst_gaussian.cpp tsts/tst_sobel.cpp
-	$(HOST_CXX) $(HOST_FLAGS) \
-		-I$(INC_DIR) -I$(GTEST_INC) \
-		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_all \
-		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_all
 
 tst_gaussian: $(COMMON) src/gaussian.cpp tsts/tst_gaussian.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
@@ -92,5 +90,7 @@ test: tst_img_io tst_gaussian tst_sobel tst_mag_dir
 clean:
 	rm -f $(BLD_HOST)/* $(BLD_RV)/*
 
+.PHONY: all canny_rv run run_all run_host test \
+        tst_img_io tst_gaussian tst_sobel tst_mag_dir clean
 .PHONY: all canny_rv run run_all run_host test \
         tst_img_io tst_gaussian tst_sobel tst_mag_dir clean
