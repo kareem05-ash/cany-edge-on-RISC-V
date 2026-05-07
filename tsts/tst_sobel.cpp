@@ -111,3 +111,24 @@ TEST(Sobel_Test, DE) {
     delete[] Gx;
     delete[] Gy;
 }
+//===========================TEST5: Non Power Of Two Size====================================
+TEST(Sobel_Test,NPTS){
+    const int W = 100,H = 85;
+    Image src (W,H);
+    std::memset(src.data, 128, W*H);
+    int16_t* Gx = new int16_t[W*H];
+    int16_t *Gy = new int16_t[W*H];
+    std::memset(Gx, 0, W*H*sizeof(int16_t));
+    std::memset(Gy, 0, W*H*sizeof(int16_t));
+    
+    sobel(src, Gx, Gy);
+
+    for(int y = 1; y < H-1;++y){
+        for(int x = 1; x < W-1; ++x){
+            EXPECT_EQ(Gx[y *W + x],0);
+            EXPECT_EQ(Gy[y *W + x],0);
+        }
+    }
+    delete[] Gx;
+    delete[] Gy;
+}
