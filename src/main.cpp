@@ -11,11 +11,12 @@
 //      3. sobel
 //      4. compute_mag_dir      -> imgs/<img_name>_<W>x<H>_output.raw
 // ===========================================================================================
-#include "../include/img_io.h"
-#include "../include/gaussian.h"
-#include "../include/sobel.h"
-#include "../include/mag_dir.h"
-#include "../include/utils.h"
+#include "img_io.h"
+#include "gaussian.h"
+#include "sobel.h"
+#include "mag_dir.h"
+#include "utils.h"
+#include "edge_refinement.h"
 
 #include <cstdio>
 #include <cstdint>
