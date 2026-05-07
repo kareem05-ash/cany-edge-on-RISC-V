@@ -35,8 +35,9 @@ void sobel (const Image& src, int16_t* Gx, int16_t* Gy){
                         }
     
     
-                            gx += pixel * Kx[ky+R][kx+R];                           // Calculate gx on all simple matrix
-                            gy += pixel * Ky[ky+R][kx+R];                           // Calculate gy on all simple matrix
+                            
+                            gx += static_cast<int16_t>(pixel) * Kx[ky+R][kx+R];     // Calculate gx on all simple matrix
+                            gy += static_cast<int16_t>(pixel) * Ky[ky+R][kx+R];    // Calculate gy on all simple matrix
                     }                   
                 }
          Gx[y *src.width + x] = gx;                                                 // Store Gx in SOA
