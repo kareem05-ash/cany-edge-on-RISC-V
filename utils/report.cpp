@@ -1,0 +1,163 @@
+// ===============================================================
+// File     : utils/report.cpp
+// -------------------------------
+// Professional timing, profiling, binary size, and
+// auto-vectorization report generation for the Canny pipeline.
+// All file output is host-only (guarded with #ifndef __riscv)
+// ===============================================================
+
+#include "../include/utils.h"
+#include <cstdio>
+#include <cstdint>
+
+// ===============================
+//     >> Timing Table
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_timing_table
+// -------------------------------
+// Prints a formatted timing table to stdout and writes to txt file
+// Columns: Stage | Time (us) | % of Total
+// -------------------------------
+// Signature:
+//      results  - array of TimingResult structs
+//      n        - number of stages
+//      out_path - path to output txt file (host only)
+// ===============================================================
+void report_timing_table(const TimingResult* results, int n, const char* out_path)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Print table header to stdout
+    // TODO2: For each stage: print name, time_us, percentage of total
+    // TODO3: Print total row
+    // TODO4: #ifndef __riscv — write same table to out_path txt file
+    // TODO5: #endif
+}
+
+// ===============================
+//     >> Hotspot
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_hotspot
+// -------------------------------
+// Identifies and prints the top hotspot stage (highest time_us)
+// and prints Amdahl's law speedup ceiling if that stage is optimized
+// -------------------------------
+// Signature:
+//      results - array of TimingResult structs
+//      n       - number of stages
+// ===============================================================
+void report_hotspot(const TimingResult* results, int n)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Find stage with max time_us
+    // TODO2: Print hotspot name and percentage
+    // TODO3: Compute Amdahl ceiling: 1 / (1 - hotspot_fraction)
+    // TODO4: Print theoretical max speedup
+    // TODO5: Print recommendation (optimize this stage first with RVV)
+}
+
+// ===============================
+//     >> Binary Size
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_binary_size
+// -------------------------------
+// Prints binary sizes for all optimization levels in a table
+// -------------------------------
+// Signature:
+//      binaries  - array of BinaryInfo structs {flag, path}
+//      n         - number of binaries
+//      out_path  - path to output txt file (host only)
+// ===============================================================
+void report_binary_size(const BinaryInfo* binaries, int n, const char* out_path)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Print table header: Flag | Binary Size (KB)
+    // TODO2: For each binary: use stat() or fseek() to get file size
+    // TODO3: Print row with flag name and size in KB
+    // TODO4: #ifndef __riscv — write same table to out_path txt file
+    // TODO5: #endif
+}
+
+// ===============================
+//     >> Optimization Sweep
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_optimization_sweep
+// -------------------------------
+// Prints full optimization sweep table combining timing + binary size
+// Columns: Flag | Gaussian(us) | Sobel(us) | Mag(us) | Dir(us) | Total(us) | Size(KB)
+// -------------------------------
+// Signature:
+//      sweep     - array of SweepResult structs
+//      n         - number of optimization levels
+//      out_path  - path to output txt file (host only)
+// ===============================================================
+void report_optimization_sweep(const SweepResult* sweep, int n, const char* out_path)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Print table header with all columns
+    // TODO2: For each sweep entry: print flag and all timing values + binary size
+    // TODO3: Highlight best timing row and smallest binary row
+    // TODO4: #ifndef __riscv — write same table to out_path txt file
+    // TODO5: #endif
+}
+
+// ===============================
+//     >> Autovectorization Summary
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_autovec_summary
+// -------------------------------
+// Reads the auto-vectorization report txt file generated by the compiler
+// and prints a human-readable summary: how many loops vectorized vs rejected
+// -------------------------------
+// Signature:
+//      autovec_path - path to the compiler-generated autovec txt file
+//      out_path     - path to output summary txt file (host only)
+// ===============================================================
+void report_autovec_summary(const char* autovec_path, const char* out_path)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Open autovec_path for reading
+    // TODO2: Count lines containing "vectorized" (success)
+    // TODO3: Count lines containing "not vectorized" (failure)
+    // TODO4: Print summary: N loops vectorized, M rejected, top reasons
+    // TODO5: #ifndef __riscv — write summary to out_path
+    // TODO6: #endif
+}
+
+// ===============================
+//     >> RVV Speedup
+// ===============================
+//     >> comments will be deleted from here
+// ===============================================================
+// Function : report_rvv_speedup
+// -------------------------------
+// Prints RVV speedup table comparing scalar vs RVV at VLEN 128/256/512
+// Columns: Stage | Scalar(us) | RVV-128(us) | RVV-256(us) | RVV-512(us) | Speedup-512
+// -------------------------------
+// Signature:
+//      scalar    - scalar timing results
+//      rvv       - array of RVV timing results per VLEN [3]
+//      n_stages  - number of pipeline stages
+//      out_path  - path to output txt file (host only)
+// ===============================================================
+void report_rvv_speedup(const TimingResult* scalar,
+                        const TimingResult* rvv[3],
+                        int n_stages,
+                        const char* out_path)
+{
+    // TODO0: Follow gen_white_square() pattern
+    // TODO1: Print table header
+    // TODO2: For each stage: print scalar time, RVV times, speedup = scalar/rvv_512
+    // TODO3: Print total row with overall speedup
+    // TODO4: #ifndef __riscv — write table to out_path
+    // TODO5: #endif
+}
