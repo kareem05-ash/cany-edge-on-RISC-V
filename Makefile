@@ -28,7 +28,8 @@ COMMON     	:= src/img_io.cpp
 
 # ─── Pipeline sources ─────────────────────────────────────────────────────────
 PIPELINE   	:= src/img_io.cpp src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp \
-				utils/gen_imgs.cpp utils/img_uitls.cpp
+				utils/gen_imgs.cpp utils/img_uitls.cpp \
+				src/edge_refinement.cpp
 
 # ─── Targets ─────────────────────────────────────────────────────────────────
 
