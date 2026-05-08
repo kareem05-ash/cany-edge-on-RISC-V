@@ -41,7 +41,7 @@ Image gen_white_square(const char* img_name, int W, int H)
     // 3. Draw the square (white)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
-                img(x, y) = 255;    // white = 255 = 0xFF
+                img(y, x) = 255;    // white = 255 = 0xFF
 
     // 4. Save on imgs/<img_name>_<W>x<H>.raw
         char path[512];
