@@ -12,7 +12,7 @@ class Image {
 
         // Constructor
         Image(int width, int height): width(width), height(height) {
-            data = static_cast<uint8_t*>(aligned_alloc(64, width * height));
+            data = static_cast<uint8_t*>(aligned_alloc(64, (width * height + 63) & ~63));
         }
 
         // Destructor
@@ -33,6 +33,7 @@ class Image {
         // Move Assignment
         Image& operator=(Image&& other) noexcept {
             if (this != &other) {
+                free(data);
                 data        = other.data;
                 width       = other.width;
                 height      = other.height;
