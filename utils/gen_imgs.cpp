@@ -232,7 +232,7 @@ Image gen_gradient_ramp(const char* img_name, int W, int H)
 // ===============================
 //     >> Generate All Images
 // ===============================
-void  gen_all(int W, int H, int cell_size = 32, unsigned int seed = 42)
+void  gen_all(int W, int H, int cell_size, unsigned int seed)
 {
     printf("[1/8] White Square ...\n");
     gen_white_square("white_square", W, H);
@@ -247,13 +247,13 @@ void  gen_all(int W, int H, int cell_size = 32, unsigned int seed = 42)
     gen_horizontal_edge("horizontal_edge", W, H);
     
     printf("[5/8] Checkerboard ...\n");
-    gen_checkboard("checkboard", W, H);
+    gen_checkboard("checkboard", W, H, cell_size);
     
     printf("[6/8] Impulse ...\n");
     gen_impulse("impulse", W, H);
     
     printf("[7/8] Noise (seed=42) ...\n");
-    gen_noise("noise", W, H);
+    gen_noise("noise", W, H, seed);
     
     printf("[8/8] Gradient Ramp ...\n");
     gen_gradient_ramp("gradient_ramp", W, H);
