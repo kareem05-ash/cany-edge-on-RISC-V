@@ -23,20 +23,21 @@ void report_timing_table(const TimingResult* results, int n, const char* out_pat
         total += results[i].time_us;
 
     // 2. Print table header to stdout
-    printf("\n%-20s %12s %10s\n", "Stage", "Time (us)", "% Total");
-    printf("%-20s %12s %10s\n",  "-----", "---------", "-------");
+    printf("\n%-30s %12s %10s\n", "Stage", "Time (us)", "% Total");
+    printf("%-30s %12s %10s\n",  "-----", "---------", "-------");
 
     // 3. For each stage: print name, time_us, percentage of total
     for (int i = 0; i < n; i++) {
         double pct = (total > 0.0) ? (results[i].time_us / total * 100.0) : 0.0;
-        printf("%-20s %12.2f %9.1f%%\n",
+        printf("%d) %-27s %12.2f %9.1f%%\n",
+               i+1,
                results[i].name,
                results[i].time_us,
                pct);
     }
 
     // 4. Print total row
-    printf("%-20s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
+    printf("%-30s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
 
 #ifndef __riscv
     // 5. Write same table to out_path txt file
@@ -45,16 +46,17 @@ void report_timing_table(const TimingResult* results, int n, const char* out_pat
         fprintf(stderr, "Error: can't open %s for writing\n", out_path);
         return;
     }
-    fprintf(f, "%-20s %12s %10s\n", "Stage", "Time (us)", "% Total");
-    fprintf(f, "%-20s %12s %10s\n", "-----", "---------", "-------");
+    fprintf(f, "%-30s %12s %10s\n", "Stage", "Time (us)", "% Total");
+    fprintf(f, "%-30s %12s %10s\n", "-----", "---------", "-------");
     for (int i = 0; i < n; i++) {
         double pct = (total > 0.0) ? (results[i].time_us / total * 100.0) : 0.0;
-        fprintf(f, "%-20s %12.2f %9.1f%%\n",
+        fprintf(f, "%d) %-27s %12.2f %9.1f%%\n",
+                i+1,
                 results[i].name,
                 results[i].time_us,
                 pct);
     }
-    fprintf(f, "%-20s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
+    fprintf(f, "%-30s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
     fclose(f);
     printf("   > Timing table saved -> %s\n", out_path);
 #endif
@@ -192,16 +194,16 @@ void report_optimization_sweep(const SweepResult* sweep, int n, const char* out_
         fprintf(stderr, "Error: can't open %s for writing\n", out_path);
         return;
     }
-    fprintf("\n%-8s %12s %10s %10s %10s %10s %10s %10s %12s %10s\n",
+    printf("\n%-8s %12s %10s %10s %10s %10s %10s %10s %12s %10s\n",
            "Flag", "Gaussian", "Sobel", "Mag", "Dir", "NMS", "dThr", "Hys", "Total(us)", "Size(KB)");
-    fprintf("%-8s %12s %10s %10s %10s %10s %10s %10s %12s %10s\n",
+    printf("%-8s %12s %10s %10s %10s %10s %10s %10s %12s %10s\n",
            "----", "--------", "-----", "---", "---", "---", "----", "---", "---------", "--------");
     for (int i = 0; i < n; i++) {
         const char* tag = "";
         if (i == best_time_idx && i == best_size_idx) tag = " << fastest + smallest";
         else if (i == best_time_idx)                  tag = " << fastest";
         else if (i == best_size_idx)                  tag = " << smallest binary";
-        fprintf("%-8s %11.2f %10.2f %10.2f %10.2f %10.2f %10.2f %10.2f %12.2f %9ld %s\n",
+        printf("%-8s %11.2f %10.2f %10.2f %10.2f %10.2f %10.2f %10.2f %12.2f %9ld %s\n",
                sweep[i].flag,
                sweep[i].stages[0].time_us,   // gaussian
                sweep[i].stages[1].time_us,   // sobel
@@ -213,9 +215,10 @@ void report_optimization_sweep(const SweepResult* sweep, int n, const char* out_
                sweep[i].total_us,
                sweep[i].binary_kb,
                tag);
+    }
     fclose(f);
     printf("   > Optimization sweep table saved -> %s\n", out_path);
-#endif
+    #endif
 }
 
 // ===============================
