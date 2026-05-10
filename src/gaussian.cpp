@@ -117,3 +117,65 @@ void gaussian_blur_separable(const Image& src, Image& dst) {
 
     free(tmp);
 }
+
+// ─── gaussian_blur_padded ─────────────────────────────────────────────────────
+//
+// Auto-vectorization friendly Gaussian blur using pre-padded image.
+//
+// Why padding helps:
+//   The standard gaussian_blur has an if-statement inside the inner loop
+//   (boundary check: sy>=0 && sy<H && sx>=0 && sx<W). This control flow
+//   prevents the compiler from auto-vectorizing the loop — it cannot prove
+//   all iterations follow the same path.
+//
+//   By pre-padding the image with GAUSS_RADIUS rows/cols of zeros, every
+//   kernel access is always valid. The inner loop becomes a simple
+//   multiply-accumulate with no branches — the compiler CAN vectorize it.
+//
+// Memory layout:
+//   Padded buffer size: (W + 2R) x (H + 2R)
+//   Original image is copied into the center at offset (R, R).
+//   Border pixels are zero (zero-padding semantics preserved).
+//
+// Output: identical to gaussian_blur on all interior pixels.
+//         Border pixels may differ by +-1 LSB due to rounding.
+
+void gaussian_blur_padded(const Image& src, Image& dst) {
+    const int W  = src.width;
+    const int H  = src.height;
+    const int R  = GAUSS_RADIUS;   // = 2
+    const int PW = W + 2 * R;      // padded width
+    const int PH = H + 2 * R;      // padded height
+
+    // Step 1: allocate padded buffer and zero-fill (zero-padding)
+    size_t pad_bytes = static_cast<size_t>(PW * PH);
+    pad_bytes = (pad_bytes + 63) & ~static_cast<size_t>(63); // align to 64 bytes
+    uint8_t* padded = static_cast<uint8_t*>(aligned_alloc(64, pad_bytes));
+    for (int i = 0; i < PW * PH; ++i) padded[i] = 0;
+
+    // Step 2: copy original image into center of padded buffer
+    // Row y of src goes to row (y+R) of padded, starting at column R
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            padded[(y + R) * PW + (x + R)] = src.data[y * W + x];
+
+    // Step 3: convolve — NO boundary check needed!
+    // Every access padded[(y+ky)*PW + (x+kx)] is valid because of the border.
+    // The inner loop is branch-free → compiler can auto-vectorize.
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            int32_t acc = 0;
+
+            for (int ky = 0; ky < 5; ++ky)
+                for (int kx = 0; kx < 5; ++kx)
+                    acc += static_cast<int32_t>(padded[(y + ky) * PW + (x + kx)])
+                         * static_cast<int32_t>(GAUSS_KERNEL[ky][kx]);
+
+            int32_t result = acc / GAUSS_SUM;
+            if (result > 255) result = 255;
+            dst.data[y * W + x] = static_cast<uint8_t>(result);
+        }
+    }
+
+    free(padded);
+}

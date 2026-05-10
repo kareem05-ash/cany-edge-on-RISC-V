@@ -73,10 +73,14 @@ TEST(GaussianBlur, ImpulseSpreadsSym) {
         EXPECT_NEAR(dst(cy, cx - d), dst(cy, cx + d), 1);
     for (int d = 1; d <= GAUSS_RADIUS; ++d)
         EXPECT_NEAR(dst(cy - d, cx), dst(cy + d, cx), 1);
-    for (int y = 0; y < H; ++y)
-        for (int x = 0; x < W; ++x)
-            if (std::abs(y - cy) > GAUSS_RADIUS || std::abs(x - cx) > GAUSS_RADIUS)
-                EXPECT_EQ(dst(y, x), 0);
+for (int y = 0; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+        if (std::abs(y - cy) > GAUSS_RADIUS ||
+            std::abs(x - cx) > GAUSS_RADIUS) {
+            EXPECT_EQ(dst(y, x), 0);
+        }
+    }
+}
 }
 
 TEST(GaussianBlur, ImpulseCentreValue) {
@@ -205,5 +209,60 @@ TEST(GaussianEquivalence, NonPowerOfTwoInteriorMatches) {
         for (int x = R; x < W - R; ++x)
             EXPECT_NEAR(static_cast<int>(dstSep(y, x)),
                         static_cast<int>(dst2d(y, x)), 3)
+                << "Mismatch at (" << y << "," << x << ")";
+}
+
+// ─── gaussian_blur_padded tests ───────────────────────────────────────────────
+//
+// gaussian_blur_padded pre-pads the image with zeros to remove the boundary
+// check from the inner loop, enabling compiler auto-vectorization.
+// Output should match gaussian_blur on interior pixels (tolerance 1 LSB).
+
+TEST(GaussianPadded, UniformImageIsUniform) {
+    const int W = 64, H = 64;
+    Image src(W, H), dst(W, H);
+    fill(src, 128); fill(dst, 0);
+    gaussian_blur_padded(src, dst);
+    EXPECT_TRUE(interior_close(dst, 128, 1));
+}
+
+TEST(GaussianPadded, AllBlackStaysBlack) {
+    const int W = 64, H = 64;
+    Image src(W, H), dst(W, H);
+    fill(src, 0); fill(dst, 99);
+    gaussian_blur_padded(src, dst);
+    EXPECT_TRUE(all_close(dst, 0, 0));
+}
+
+TEST(GaussianPadded, NonPowerOfTwoSize) {
+    const int W = 100, H = 75;
+    Image src(W, H), dst(W, H);
+    fill(src, 200); fill(dst, 0);
+    gaussian_blur_padded(src, dst);
+    EXPECT_TRUE(interior_close(dst, 200, 1));
+}
+
+// ─── Equivalence: 2-D vs padded ──────────────────────────────────────────────
+//
+// gaussian_blur_padded uses the same 5x5 kernel and divisor as gaussian_blur.
+// Interior pixels must match within 1 LSB (only rounding may differ).
+
+TEST(GaussianEquivalence, PaddedMatchesTwoD) {
+    const int W = 100, H = 75;
+    Image src(W, H), dst2d(W, H), dstPad(W, H);
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            src(y, x) = static_cast<uint8_t>((x * 3 + y * 7) % 256);
+    fill(dst2d,  0);
+    fill(dstPad, 0);
+
+    gaussian_blur(src, dst2d);
+    gaussian_blur_padded(src, dstPad);
+
+    const int R = GAUSS_RADIUS;
+    for (int y = R; y < H - R; ++y)
+        for (int x = R; x < W - R; ++x)
+            EXPECT_NEAR(static_cast<int>(dstPad(y, x)),
+                        static_cast<int>(dst2d(y, x)), 1)
                 << "Mismatch at (" << y << "," << x << ")";
 }

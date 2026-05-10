@@ -93,4 +93,12 @@ void gaussian_blur(const Image& src, Image& dst);
 // integer rounding of the factored kernel), which is verified in the tests.
 void gaussian_blur_separable(const Image& src, Image& dst);
 
+// Padded Gaussian blur — auto-vectorization friendly version.
+//
+// Pre-pads the image with GAUSS_RADIUS rows/cols of zeros so that the
+// inner convolution loop needs no boundary check. Without the if-statement
+// inside the hot loop the compiler can auto-vectorize the inner loop.
+// Output is identical to gaussian_blur on interior pixels.
+void gaussian_blur_padded(const Image& src, Image& dst);
+
 #endif // GAUSSIAN_H

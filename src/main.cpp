@@ -1,184 +1,166 @@
-// ===========================================================================================
+// ====================================================================================================
 // src/main.cpp
-// Cany Edge Detection pipeline - stage 1-4 (Gaussian -> Sobel -> Mag/Dir)
-// -------------------------------------------------------------------------------------------
+// Canny Edge Detection Pipeline - Phase 2, 3, 4, 5
+// ----------------------------------------------------------------------------------------------------
+// Two compilation targets controlled by the toolchain:
+//
+//      Target mode  (__riscv defined by riscv64-unknown-elf)
+//          Runs full pipeline with timing via QEMU
+//
+//      Host mode    (default, g++)
+//          Runs full pipeline with timing AND saves all output images
+//
+// ----------------------------------------------------------------------------------------------------
 // Usage:
-//      ./build/host/canny_host <img_name> <W> <H>
-// -------------------------------------------------------------------------------------------
-// Pipeline:
-//      1. gen_white_square     -> imgs/<img_name>_<W>x<H>.raw
-//      2. gaussian_blur        -> imgs/<img_name>_<W>x<H>_blurred.raw
-//      3. sobel
-//      4. compute_mag_dir      -> imgs/<img_name>_<W>x<H>_output.raw
-// ===========================================================================================
+//      make run_target  W=512 H=512 I=0    # RISC-V: timing via QEMU
+//      make run_host    W=512 H=512 I=0    # host:   timing + file I/O
+// ====================================================================================================
+
 #include "img_io.h"
 #include "gaussian.h"
 #include "sobel.h"
 #include "mag_dir.h"
-#include "utils.h"
 #include "edge_refinement.h"
+#include "utils.h"
+#include "timer.h"
 
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-using namespace std;
 
+// ── Image index table ─────────────────────────────────────────────────────────
+static const char* IMG_NAMES[] = {
+    "white_square",     // 0
+    "circle",           // 1
+    "vertical_edge",    // 2
+    "horizontal_edge",  // 3
+    "checkerboard",     // 4
+    "impulse",          // 5
+    "gradient_ramp"     // 6
+};
+static const int N_IMGS = 7;
+
+// ── Generate image by index ───────────────────────────────────────────────────
+static Image gen_by_index(int I, int W, int H) {
+    switch (I) {
+        case 0: return gen_white_square   (W, H);
+        case 1: return gen_circle         (W, H);
+        case 2: return gen_vertical_edge  (W, H);
+        case 3: return gen_horizontal_edge(W, H);
+        case 4: return gen_checkboard     (W, H, 32);
+        case 5: return gen_impulse        (W, H);
+        case 6: return gen_gradient_ramp  (W, H);
+        default:
+            fprintf(stderr, "Error: invalid image index %d\n", I);
+            exit(1);
+    }
+}
+
+// ====================================================================================================
+// main()
+// ====================================================================================================
 int main(int argc, char* argv[])
 {
-    // Arguments Validation
+    // ── Arguments ─────────────────────────────────────────────────────────
     if (argc != 4) {
         fprintf(stderr,
-            "Usage:     %s <img_name> <W> <H>\n", 
+            "Usage: %s <W> <H> <I>\n"
+            "  W, H : image dimensions in pixels\n"
+            "  I    : image index\n"
+            "         0=white_square  1=circle        2=vertical_edge\n"
+            "         3=hor_edge      4=checkerboard  5=impulse\n"
+            "         6=gradient_ramp\n",
             argv[0]);
         return 1;
     }
 
-    const char* img_name = argv[1];
-    const int W = atoi(argv[2]);
-    const int H = atoi(argv[3]);
+    const int W = atoi(argv[1]);
+    const int H = atoi(argv[2]);
+    const int I = atoi(argv[3]);
 
     if (W <= 0 || H <= 0) {
         fprintf(stderr, "Error: W and H must be positive integers.\n");
         return 1;
     }
+    if (I < 0 || I >= N_IMGS) {
+        fprintf(stderr, "Error: I must be in [0, %d].\n", N_IMGS - 1);
+        return 1;
+    }
 
+    const char* img_name  = IMG_NAMES[I];
+    const int   ITERATIONS = 100;
+
+    // ── Banner ─────────────────────────────────────────────────────────────
     printf("\n====================================================================================================\n");
-    printf(" << Cany Edge Pipeline >>\n");
-    printf(" > img_name : %s\n", img_name);
-    printf(" > W x H    : %d x %d\n", W, H);
+    printf(" << Canny Edge Pipeline >>\n");
+#ifdef __riscv
+    printf(" >> Mode       : RISC-V Target (no file I/O)\n");
+#else
+    printf(" >> Mode       : Host (timing + file output)\n");
+#endif
+    printf(" >> Image      : %s [I=%d]\n", img_name, I);
+    printf(" >> W x H      : %d x %d\n", W, H);
+    printf(" >> Iterations : %d\n", ITERATIONS);
     printf("====================================================================================================\n\n");
 
-    // Path Buffers
-        char path_blurred[512];
-        char path_blurred_separable[512];
-        char path_output [512];
-        char path_output_separable[512];
-        char path_output_refined[512];
-        char path_output_refined_separable[512];
+    // ── Generate source image in memory ────────────────────────────────────
+    // Same on both host and target — no disk I/O needed for input
+    printf("[Step 1] Generating source image ...\n");
+    Image src = gen_by_index(I, W, H);
+    printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
 
-        snprintf(path_blurred, sizeof(path_blurred),
-                "imgs/%s_%dx%d_blurred.raw", img_name, W, H);
-        snprintf(path_blurred_separable, sizeof(path_blurred_separable),
-                "imgs/%s_%dx%d_blurred_separable.raw", img_name, W, H);
-        snprintf(path_output, sizeof(path_output),
-                "imgs/%s_%dx%d_output.raw", img_name, W, H);
-        snprintf(path_output_separable, sizeof(path_output_separable),
-                "imgs/%s_%dx%d_output_separable.raw", img_name, W, H);
-        snprintf(path_output_refined, sizeof(path_output_refined),
-                "imgs/%s_%dx%d_output_refined.raw", img_name, W, H);
-        snprintf(path_output_refined_separable, sizeof(path_output_refined_separable),
-                "imgs/%s_%dx%d_output_refined_separapath.raw", img_name, W, H);
+    // ── Pipeline outputs ───────────────────────────────────────────────────
+    TimingResult    results_2d [7];
+    TimingResult    results_sep[7];
+    TimingResult    results_pad[7];
+    PipelineOutputs out_2d  = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_sep = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_pad = {nullptr, nullptr, nullptr};
 
-    // [Step 1] Generate White Square Test Image
-        printf("[Step 1] Generate White Square Test Image ...\n");
-        Image src = gen_white_square(img_name, W, H);
+    // ── [Method 1] 2D Gaussian ─────────────────────────────────────────────
+    printf("\n[Step 2] Pipeline — 2D Gaussian kernel (%d iterations) ...\n", ITERATIONS);
+    run_pipeline(src, W, H, ITERATIONS, 0, true, results_2d, out_2d);
+    printf("\n");
+    report_timing_table(results_2d, 7, "docs/timing_2d.txt");
+    printf("\n");
+    report_hotspot(results_2d, 7);
+    printf("\n----------------------------------------------------------------------------------------------------\n");
 
-    // [Step 2] Gaussian Blur
-        printf("\n[Step 2] Gaussian Blur ...\n");
-        Image blurred(W, H);
-        Image blurred_separable(W, H);
-        gaussian_blur(src, blurred);
-        gaussian_blur(src, blurred_separable);
-        save_img(path_blurred, blurred);
-        save_img(path_blurred_separable, blurred_separable);
-        printf("    > Image saved -> imgs/%s_%dx%d_blurred.raw\n", img_name, W, H);
-        printf("    > Image saved -> imgs/%s_%dx%d_blurred_separable.raw\n", img_name, W, H);
-            
-    // [Step 3] Sobel Gradients
-        printf("\n[Step 3] Sobel Gradients ...\n");
-        int16_t* Gx = new int16_t[W * H];
-        int16_t* Gx_separable = new int16_t[W * H];
-        int16_t* Gy = new int16_t[W * H];
-        int16_t* Gy_separable = new int16_t[W * H];
-        sobel(blurred, Gx, Gy);
-        sobel(blurred_separable, Gx_separable, Gy_separable);
-            
-    // [Step 4] Magnitude & Direction
-        printf("\n[Step 4] Magnitude & Direction ...\n");
-        uint8_t* mag = new uint8_t[W * H];
-        uint8_t* mag_separable = new uint8_t[W * H];
-        uint8_t* dir = new uint8_t[W * H];
-        uint8_t* dir_separable = new uint8_t[W * H];
-        compute_magnitude(Gx, Gy, mag, W, H, MagMethod::L1);
-        compute_magnitude(Gx_separable, Gy_separable, mag_separable, W, H, MagMethod::L1);
-        compute_direction(Gx, Gy, dir, W, H);
-        compute_direction(Gx_separable, Gy_separable, dir_separable, W, H);
-        save_raw_u8(path_output, mag, W, H);
-        save_raw_u8(path_output_separable, mag_separable, W, H);
-        printf("    > Image saved -> imgs/%s_%dx%d_output.raw\n", img_name, W, H);
-        printf("    > Image saved -> imgs/%s_%dx%d_output_separable.raw\n", img_name, W, H);
-    
-    // [Step 5] Non-Maximum Suppression
-        printf("\n[Step 5] Non-Maximum Suppression ...\n");
-        uint8_t* nms_out = new uint8_t[W * H];
-        uint8_t* nms_out_separable = new uint8_t[W * H];
-        nms(mag, dir, nms_out, W, H);
-        nms(mag_separable, dir_separable, nms_out_separable, W, H);
+    // ── [Method 2] Separable Gaussian ──────────────────────────────────────
+    printf("\n[Step 3] Pipeline — Separable Gaussian kernel (%d iterations) ...\n", ITERATIONS);
+    run_pipeline(src, W, H, ITERATIONS, 1, true, results_sep, out_sep);
+    printf("\n");
+    report_timing_table(results_sep, 7, "docs/timing_separable.txt");
+    printf("\n");
+    report_hotspot(results_sep, 7);
+    printf("\n----------------------------------------------------------------------------------------------------\n");
 
-    // [Step 6] Double Thresholding
-        printf("\n[Step 6] Double Thresholding ...\n");
-        // Chosing t_high & t_low based on max_mag
-        uint8_t max_mag = 0;
-        uint8_t max_mag_separable = 0;
-        uint8_t t_high, t_low;
-        uint8_t t_high_separable, t_low_separable;
+    // ── [Method 3] Padded Gaussian (vectorization check) ───────────────────
+    printf("\n[Step 4] Pipeline — Padded Gaussian kernel (%d iterations) ...\n", ITERATIONS);
+    run_pipeline(src, W, H, ITERATIONS, 2, true, results_pad, out_pad);
+    printf("\n");
+    report_timing_table(results_pad, 7, "docs/timing_padded.txt");
+    printf("\n");
+    report_hotspot(results_pad, 7);
+    printf("\n----------------------------------------------------------------------------------------------------\n");
 
-        for (int i = 0; i < W * H; i++)
-        {
-            if (mag[i] > max_mag)
-                max_mag = mag[i];
-            if (mag_separable[i] > max_mag_separable)
-                max_mag_separable = mag_separable[i];
-        }
-        
-        t_high              = max_mag * 0.4;
-        t_low               = t_high  * 0.5;
-        t_high_separable    = max_mag_separable * 0.4;
-        t_low_separable     = t_high_separable  * 0.5;
-        
-        printf(" - Max magnitude = %u\n", max_mag);
-        printf(" - Max magnitude (separable) = %u\n", max_mag_separable);
-        printf(" - t_high           = %u * 0.4 = %u\n", max_mag, t_high);
-        printf(" - t_low            = %u * 0.5 = %u\n", t_high, t_low);
-        printf(" - t_high_separable = %u * 0.4 = %u\n", max_mag_separable, t_high_separable);
-        printf(" - t_low_separable  = %u * 0.5 = %u\n", t_high_separable, t_low_separable);
-        
-        uint8_t* double_threshold_out = new uint8_t[W * H];
-        uint8_t* double_threshold_out_separable = new uint8_t[W * H];
-        double_threshold(nms_out, double_threshold_out, W, H, t_low, t_high);
-        double_threshold(nms_out_separable, double_threshold_out_separable, W, H, t_low_separable, t_high_separable);
+    // ── Save outputs (host only) ────────────────────────────────────────────
+#ifndef __riscv
+    printf("\n[Step 5] Saving output images ...\n");
+    save_outputs(img_name, W, H, "",     src, *out_2d.blurred,  out_2d.mag,  out_2d.out_refined);
+    save_outputs(img_name, W, H, "_sep", src, *out_sep.blurred, out_sep.mag, out_sep.out_refined);
+    save_outputs(img_name, W, H, "_pad", src, *out_pad.blurred, out_pad.mag, out_pad.out_refined);
+#endif
 
-    // [Step 7] Hysteresis
-        printf("\n[Step 7] Hysteresis ...\n");
-        uint8_t* hysteresis_out = new uint8_t[W * H];
-        uint8_t* hysteresis_out_separable = new uint8_t[W * H];
-        hysteresis(double_threshold_out, hysteresis_out, W, H);
-        hysteresis(double_threshold_out_separable, hysteresis_out_separable, W, H);
-        save_raw_u8(path_output_refined, hysteresis_out, W, H);
-        save_raw_u8(path_output_refined_separable, hysteresis_out_separable, W, H);
-        printf("    > Image saved -> imgs/%s_%dx%d_output_refined.raw\n", img_name, W, H);
-        printf("    > Image saved -> imgs/%s_%dx%d_output_refined_separable.raw\n", img_name, W, H);
-
-    // TODO: RVV Optimization
-
-    // Free Heap Allocations
-    delete[] Gx;
-    delete[] Gy;
-    delete[] mag;
-    delete[] dir;
-    delete[] Gx_separable;
-    delete[] Gy_separable;
-    delete[] mag_separable;
-    delete[] dir_separable;
-    delete[] nms_out;
-    delete[] nms_out_separable;
-    delete[] double_threshold_out;
-    delete[] double_threshold_out_separable;
-    delete[] hysteresis_out;
-    delete[] hysteresis_out_separable;
+    // ── Cleanup ────────────────────────────────────────────────────────────
+    free_pipeline_outputs(out_2d);
+    free_pipeline_outputs(out_sep);
+    free_pipeline_outputs(out_pad);
 
     printf("\n====================================================================================================\n");
-    printf(" << Pipeline Completed >>\n");
+    printf(" << Pipeline Complete >>\n");
     printf("====================================================================================================\n\n");
+
+    return 0;
 }
