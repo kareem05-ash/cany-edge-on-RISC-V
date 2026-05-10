@@ -21,7 +21,7 @@ struct BinaryInfo
 struct SweepResult
 {
     const char*     flag;       // optimization flag
-    TimingResult    stages[4];  // {gaussian, sobel, magnitude, direction}
+    TimingResult    stages[7];  // {gaussian, sobel, magnitude, direction, non-maximum suppresion, double thresholding, hyseteresis}
     double          total_us;   // sum of all stages
     long            binary_kb;  // binary size in KB
 };
