@@ -11,7 +11,6 @@
 // → Use RVV intrinsics to manually vectorize the inner loop
 // ─────────────────────────────────────────────────────────────────────────
 #include "sobel.h"
-#include "timer.h" 
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>                                    
@@ -29,10 +28,6 @@ double sobel (const Image& src, int16_t* Gx, int16_t* Gy){
         {1,  2,  1}
     };
     const int R=Sob_Rad; 
-//==============Start timer====================
-    Timer t;
-    timer_start(&t);
-
     for(int y=0; y<src.height; y++){
         for(int x=0; x<src.width; x++){
             
@@ -57,7 +52,4 @@ double sobel (const Image& src, int16_t* Gx, int16_t* Gy){
          Gy[y *src.width + x] = gy;                                                 // Store Gy in SOA
         }  
     }
-//===========Stop timer======================
-double us = timer_stop(&t);
-return  us;
 }    
