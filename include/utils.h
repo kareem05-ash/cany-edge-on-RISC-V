@@ -40,14 +40,15 @@ struct PipelineOutputs {
 void save_raw_u8(const char* path, const uint8_t* buf, int W, int H);
 
 // ===== File -> utils/gen_imgs.cpp ==================================================
-Image gen_white_square          (const char* img_name, int W, int H);
-Image gen_circle                (const char* img_name, int W, int H);
-Image gen_vertical_edge         (const char* img_name, int W, int H);
-Image gen_horizontal_edge       (const char* img_name, int W, int H);
-Image gen_checkboard            (const char* img_name, int W, int H, int cell_size = 32);
-Image gen_impulse               (const char* img_name, int W, int H);
-Image gen_noise                 (const char* img_name, int W, int H, unsigned int seed = 42);
-Image gen_gradient_ramp         (const char* img_name, int W, int H);
+void save_to_mach               (const Image& img, const char* img_name, int W, int H);
+Image gen_white_square          (int W, int H);
+Image gen_circle                (int W, int H);
+Image gen_vertical_edge         (int W, int H);
+Image gen_horizontal_edge       (int W, int H);
+Image gen_checkboard            (int W, int H, int cell_size = 32);
+Image gen_impulse               (int W, int H);
+Image gen_noise                 (int W, int H, unsigned int seed = 42);
+Image gen_gradient_ramp         (int W, int H);
 void  gen_all                   (int W, int H, int cell_size = 32, unsigned int seed = 42);
 
 // ===== File -> utils/report.cpp ==================================================

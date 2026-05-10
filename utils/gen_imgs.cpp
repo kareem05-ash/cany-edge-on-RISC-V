@@ -10,10 +10,27 @@
 #include <algorithm>
 using namespace std;
 
+
+// ===============================
+// Save Image to host machiene
+// ===============================
+void save_to_mach(const Image& img, const char* img_name, int W, int H)
+{
+    char path[512];
+
+    std::snprintf(path, sizeof(path),
+                  "imgs/%s_%dx%d.raw",
+                  img_name, W, H);
+
+    save_img(path, img);
+
+    std::printf("   > Image Saved -> %s\n", path);
+}
+
 // ===============================
 //     >> White Square
 // ===============================
-Image gen_white_square(const char* img_name, int W, int H)
+Image gen_white_square(int W, int H)
 {
     // 1. Allocate img & zero-fill (black background)
         Image img(W, H);
@@ -31,21 +48,14 @@ Image gen_white_square(const char* img_name, int W, int H)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
                 img(y, x) = 255;    // white = 255 = 0xFF
-
-    // 4. Save on imgs/<img_name>_<W>x<H>.raw
-        char path[512];
-        std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-        save_img(path, img);
-        std::printf("   > Image Saved -> %s\n", path);
-
-    // 5. Return img object
+                
         return img;
 }
 
 // ===============================
 //     >> Circle
 // ===============================
-Image gen_circle(const char* img_name, int W, int H)
+Image gen_circle(int W, int H)
 {
     Image img(W, H);
     std::memset(img.data, 0, W * H);
@@ -67,22 +77,13 @@ Image gen_circle(const char* img_name, int W, int H)
                 img(y, x) = 255;
         }
 
-    // --- Step 4: Save ---
-
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
-    // --- Step 5: Return ---
-
     return img;
 }
 
 // ===============================
 //     >> Vertical Edge
 // ===============================
-Image gen_vertical_edge(const char* img_name, int W, int H)
+Image gen_vertical_edge(int W, int H)
 {
       // --- Step 1: Allocate & zero-fill ---
 
@@ -95,20 +96,13 @@ Image gen_vertical_edge(const char* img_name, int W, int H)
             if (x >= W / 2)
                 img(y, x) = 255;
 
-    // --- Step 3: Save & return ---
-
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
     return img;
 }
 
 // ===============================
 //     >> Horizontal Edge
 // ===============================
-Image gen_horizontal_edge(const char* img_name, int W, int H)
+Image gen_horizontal_edge(int W, int H)
 {
     Image img(W, H);
     std::memset(img.data, 0, W * H);
@@ -117,22 +111,14 @@ Image gen_horizontal_edge(const char* img_name, int W, int H)
         for (int x = 0; x < W; ++x)
             if (y >= H / 2)
                 img(y, x) = 255;
-
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
+                
     return img;
-
-
-  
 }
 
 // ===============================
 //     >> Checkboard
 // ===============================
-Image gen_checkboard(const char* img_name, int W, int H, int cell_size)
+Image gen_checkboard(int W, int H, int cell_size)
 
 {
      // --- Step 1: Allocate & zero-fill ---
@@ -146,23 +132,14 @@ Image gen_checkboard(const char* img_name, int W, int H, int cell_size)
         for (int x = 0; x < W; ++x)
             if ((y / cell_size + x / cell_size) % 2 == 0)
                 img(y, x) = 255;
-
-    // --- Step 3: Save & return ---
-
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
+                
     return img;
-
-   
 }
 
 // ===============================
 //     >> Impules
 // ===============================
-Image gen_impulse(const char* img_name, int W, int H)
+Image gen_impulse(int W, int H)
 {
 
     // --- Step 1: Allocate & zero-fill ---
@@ -172,20 +149,14 @@ Image gen_impulse(const char* img_name, int W, int H)
 
     // --- Step 2: Set center pixel ---
     img(H / 2, W / 2) = 255;
-
-    // --- Step 3: Save & return ---
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
+    
     return img;
 }
 
 // ===============================
 //     >> Noise
 // ===============================
-Image gen_noise(const char* img_name, int W, int H, unsigned int seed)
+Image gen_noise(int W, int H, unsigned int seed)
 
 {
       // --- Step 1: Allocate ---
@@ -195,21 +166,14 @@ Image gen_noise(const char* img_name, int W, int H, unsigned int seed)
     srand(seed);
     for (int i = 0; i < W * H; ++i)
         img.data[i] = rand() % 256;
-
-
-        // --- Step 3: Save & return ---
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
+        
     return img;
 }
 
 // ===============================
 //     >> Gradient Ramp
 // ===============================
-Image gen_gradient_ramp(const char* img_name, int W, int H)
+Image gen_gradient_ramp(int W, int H)
 {
      // --- Step 1: Allocate ---
     Image img(W, H);
@@ -218,14 +182,7 @@ Image gen_gradient_ramp(const char* img_name, int W, int H)
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x)
             img(y, x) = (uint8_t)(x * 255 / (W - 1));
-
-
-            // --- Step 3: Save & return ---
-    char path[512];
-    std::snprintf(path, sizeof(path), "imgs/%s_%dx%d.raw", img_name, W, H);
-    save_img(path, img);
-    std::printf("   > Image Saved -> %s\n", path);
-
+            
     return img;
 }
 
@@ -235,28 +192,36 @@ Image gen_gradient_ramp(const char* img_name, int W, int H)
 void  gen_all(int W, int H, int cell_size, unsigned int seed)
 {
     printf("[1/8] White Square ...\n");
-    gen_white_square("white_square", W, H);
+    save_to_mach(gen_white_square(W, H),
+                    "square", W, H);
     
     printf("[2/8] Circle ...\n");
-    gen_circle("circle", W, H);
+    save_to_mach(gen_circle(W, H),
+                    "square", W, H);
     
     printf("[3/8] Vertical Edge ...\n");
-    gen_vertical_edge("vertical_edge", W, H);
+    save_to_mach(gen_vertical_edge(W, H),
+                    "square", W, H);
     
     printf("[4/8] Horizontal Edge ...\n");
-    gen_horizontal_edge("horizontal_edge", W, H);
+    save_to_mach(gen_horizontal_edge(W, H),
+                    "square", W, H);
     
     printf("[5/8] Checkerboard ...\n");
-    gen_checkboard("checkboard", W, H, cell_size);
+    save_to_mach(gen_checkboard(W, H, cell_size),
+                    "square", W, H);
     
     printf("[6/8] Impulse ...\n");
-    gen_impulse("impulse", W, H);
+    save_to_mach(gen_impulse(W, H),
+                    "square", W, H);
     
     printf("[7/8] Noise (seed=42) ...\n");
-    gen_noise("noise", W, H, seed);
+    save_to_mach(gen_noise(W, H, seed),
+                    "square", W, H);
     
     printf("[8/8] Gradient Ramp ...\n");
-    gen_gradient_ramp("gradient_ramp", W, H);
+    save_to_mach(gen_gradient_ramp(W, H),
+                    "square", W, H);
     
     printf("\n[OK] All test images saved to imgs/\n\n");
 }
