@@ -145,7 +145,8 @@ Image gen_horizontal_edge(const char* img_name, int W, int H)
 // ===============================
 
 
-Image gen_checkerboard(const char* img_name, int W, int H, int cell_size = 32)
+Image gen_checkboard(const char* img_name, int W, int H, int cell_size)
+
 {
      // --- Step 1: Allocate & zero-fill ---
 
@@ -203,7 +204,8 @@ Image gen_impulse(const char* img_name, int W, int H)
 // ===============================
 
 
-Image gen_noise(const char* img_name, int W, int H, unsigned int seed = 42)
+Image gen_noise(const char* img_name, int W, int H, unsigned int seed)
+
 {
       // --- Step 1: Allocate ---
     Image img(W, H);
