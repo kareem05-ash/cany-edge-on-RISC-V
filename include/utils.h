@@ -1,7 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <img_io.h>
+#include "img_io.h"
 #include <cstdint>
 
 // ===== Structs For Rreporting ==================================================
@@ -62,8 +62,6 @@ void report_rvv_speedup         (const TimingResult* scalar,
                                  int n_stages, 
                                  const char* out_path);
 
-#endif
-
 // ===== File -> utils/pipeline_helpers.cpp ===========================================
 void run_pipeline(const Image&            src,
                          int              W,
@@ -86,3 +84,4 @@ void save_outputs(const char*           img_name,
 #endif
 
 void free_pipeline_outputs(PipelineOutputs& p);
+#endif
