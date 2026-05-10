@@ -43,7 +43,7 @@ DOCS_DIR    := docs
 IMGS_DIR    := imgs
 
 # ─── Runtime variables (overridable from command line) ───────────────────────
-IMG         ?= square
+# IMG         ?= square
 W           ?= 512
 H           ?= 512
 I    		?= 0	# square by default

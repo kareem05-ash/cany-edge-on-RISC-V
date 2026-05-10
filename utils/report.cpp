@@ -218,7 +218,7 @@ void report_optimization_sweep(const SweepResult* sweep, int n, const char* out_
     }
     fclose(f);
     printf("   > Optimization sweep table saved -> %s\n", out_path);
-    #endif
+#endif
 }
 
 // ===============================

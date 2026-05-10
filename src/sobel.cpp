@@ -11,10 +11,8 @@
 // → Use RVV intrinsics to manually vectorize the inner loop
 // ─────────────────────────────────────────────────────────────────────────
 #include "sobel.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>                                    
-double sobel (const Image& src, int16_t* Gx, int16_t* Gy){
+#include <cstdint>                                   
+void sobel (const Image& src, int16_t* Gx, int16_t* Gy){
     
     static const int16_t Kx[3][3] = {                                               // Sobel X Kernal: detects vertical edges
         {-1, 0, 1},

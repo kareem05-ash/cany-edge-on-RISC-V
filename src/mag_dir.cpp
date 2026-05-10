@@ -39,7 +39,7 @@ void compute_magnitude(const int16_t* gx,
         max_val = std::max(max_val, val);
     }
 
-    // normalize to [0, 255
+    // normalize to [0, 255]
     // We need two passes because we must know the global max first.
     // A single-pass approach is not straightforward because normalization
     // requires dividing by max, which is unknown until the full scan.

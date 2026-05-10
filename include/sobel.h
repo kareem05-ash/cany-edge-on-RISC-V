@@ -4,5 +4,5 @@
 #include <cstdint>
 
 static constexpr int Sob_Rad = 1;                           // Sobel Radius
-double sobel (const Image& src, int16_t* Gx, int16_t* Gy);
+void sobel (const Image& src, int16_t* Gx, int16_t* Gy);
 #endif
