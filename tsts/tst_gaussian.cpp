@@ -73,10 +73,14 @@ TEST(GaussianBlur, ImpulseSpreadsSym) {
         EXPECT_NEAR(dst(cy, cx - d), dst(cy, cx + d), 1);
     for (int d = 1; d <= GAUSS_RADIUS; ++d)
         EXPECT_NEAR(dst(cy - d, cx), dst(cy + d, cx), 1);
-    for (int y = 0; y < H; ++y)
-        for (int x = 0; x < W; ++x)
-            if (std::abs(y - cy) > GAUSS_RADIUS || std::abs(x - cx) > GAUSS_RADIUS)
-                EXPECT_EQ(dst(y, x), 0);
+for (int y = 0; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+        if (std::abs(y - cy) > GAUSS_RADIUS ||
+            std::abs(x - cx) > GAUSS_RADIUS) {
+            EXPECT_EQ(dst(y, x), 0);
+        }
+    }
+}
 }
 
 TEST(GaussianBlur, ImpulseCentreValue) {
