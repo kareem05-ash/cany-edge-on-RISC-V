@@ -193,35 +193,35 @@ void  gen_all(int W, int H, int cell_size, unsigned int seed)
 {
     printf("[1/8] White Square ...\n");
     save_to_mach(gen_white_square(W, H),
-                    "square", W, H);
+                    "white_square", W, H);
     
     printf("[2/8] Circle ...\n");
     save_to_mach(gen_circle(W, H),
-                    "square", W, H);
+                    "circle", W, H);
     
     printf("[3/8] Vertical Edge ...\n");
     save_to_mach(gen_vertical_edge(W, H),
-                    "square", W, H);
+                    "vertical_edge", W, H);
     
     printf("[4/8] Horizontal Edge ...\n");
     save_to_mach(gen_horizontal_edge(W, H),
-                    "square", W, H);
+                    "horizontal_edge", W, H);
     
     printf("[5/8] Checkerboard ...\n");
     save_to_mach(gen_checkboard(W, H, cell_size),
-                    "square", W, H);
+                    "checkerboard", W, H);
     
     printf("[6/8] Impulse ...\n");
     save_to_mach(gen_impulse(W, H),
-                    "square", W, H);
+                    "impulse", W, H);
     
     printf("[7/8] Noise (seed=42) ...\n");
     save_to_mach(gen_noise(W, H, seed),
-                    "square", W, H);
+                    "noise", W, H);
     
     printf("[8/8] Gradient Ramp ...\n");
     save_to_mach(gen_gradient_ramp(W, H),
-                    "square", W, H);
+                    "gradient_ramp", W, H);
     
     printf("\n[OK] All test images saved to imgs/\n\n");
 }

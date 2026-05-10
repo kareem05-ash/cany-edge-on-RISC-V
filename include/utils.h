@@ -55,7 +55,7 @@ void  gen_all                   (int W, int H, int cell_size = 32, unsigned int 
 void report_timing_table        (const TimingResult* results, int n, const char* out_path);
 void report_hotspot             (const TimingResult* results, int n);
 void report_binary_size         (const BinaryInfo*  binaries, int n, const char* out_path);
-void report_potimization_sweep  (const SweepResult*  results, int n, const char* out_path);
+void report_optimization_sweep  (const SweepResult*  results, int n, const char* out_path);
 void report_autovec_summary     (const char* autovec_path,           const char* out_path);
 void report_rvv_speedup         (const TimingResult* scalar,
                                  const TimingResult* rvv[3],
