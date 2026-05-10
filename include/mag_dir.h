@@ -1,5 +1,5 @@
-#ifndef MAG_DIR
-#define MAG_DIR
+#ifndef MAG_DIR_H
+#define MAG_DIR_H
 #include <cstdint>
 #include <cstddef>
 
