@@ -1,5 +1,5 @@
-#ifndef SOBEL
-#define SOBEL
+#ifndef SOBEL_H
+#define SOBEL_H
 #include "img_io.h"
 #include <cstdint>
 

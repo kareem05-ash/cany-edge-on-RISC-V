@@ -172,6 +172,7 @@ void gaussian_blur_padded(const Image& src, Image& dst) {
                          * static_cast<int32_t>(GAUSS_KERNEL[ky][kx]);
 
             int32_t result = acc / GAUSS_SUM;
+            if (result < 0)   result = 0;
             if (result > 255) result = 255;
             dst.data[y * W + x] = static_cast<uint8_t>(result);
         }
