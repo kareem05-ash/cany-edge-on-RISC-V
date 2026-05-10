@@ -42,11 +42,9 @@ Image gen_white_square(const char* img_name, int W, int H)
         return img;
 }
 
-
 // ===============================
 //     >> Circle
 // ===============================
-
 Image gen_circle(const char* img_name, int W, int H)
 {
     Image img(W, H);
@@ -81,12 +79,9 @@ Image gen_circle(const char* img_name, int W, int H)
     return img;
 }
 
-
-
 // ===============================
 //     >> Vertical Edge
 // ===============================
-
 Image gen_vertical_edge(const char* img_name, int W, int H)
 {
       // --- Step 1: Allocate & zero-fill ---
@@ -110,14 +105,9 @@ Image gen_vertical_edge(const char* img_name, int W, int H)
     return img;
 }
 
-  
-
-
 // ===============================
 //     >> Horizontal Edge
 // ===============================
-
-
 Image gen_horizontal_edge(const char* img_name, int W, int H)
 {
     Image img(W, H);
@@ -139,12 +129,9 @@ Image gen_horizontal_edge(const char* img_name, int W, int H)
   
 }
 
-
 // ===============================
 //     >> Checkboard
 // ===============================
-
-
 Image gen_checkboard(const char* img_name, int W, int H, int cell_size)
 
 {
@@ -172,12 +159,9 @@ Image gen_checkboard(const char* img_name, int W, int H, int cell_size)
    
 }
 
-
 // ===============================
 //     >> Impules
 // ===============================
-
-
 Image gen_impulse(const char* img_name, int W, int H)
 {
 
@@ -198,12 +182,9 @@ Image gen_impulse(const char* img_name, int W, int H)
     return img;
 }
 
-
 // ===============================
 //     >> Noise
 // ===============================
-
-
 Image gen_noise(const char* img_name, int W, int H, unsigned int seed)
 
 {
@@ -225,14 +206,9 @@ Image gen_noise(const char* img_name, int W, int H, unsigned int seed)
     return img;
 }
 
-
-
 // ===============================
 //     >> Gradient Ramp
 // ===============================
-
-
-
 Image gen_gradient_ramp(const char* img_name, int W, int H)
 {
      // --- Step 1: Allocate ---
@@ -251,4 +227,36 @@ Image gen_gradient_ramp(const char* img_name, int W, int H)
     std::printf("   > Image Saved -> %s\n", path);
 
     return img;
+}
+
+// ===============================
+//     >> Generate All Images
+// ===============================
+void  gen_all(int W, int H, int cell_size = 32, unsigned int seed = 42)
+{
+    printf("[1/8] White Square ...\n");
+    gen_white_square("white_square", W, H);
+    
+    printf("[2/8] Circle ...\n");
+    gen_circle("circle", W, H);
+    
+    printf("[3/8] Vertical Edge ...\n");
+    gen_vertical_edge("vertical_edge", W, H);
+    
+    printf("[4/8] Horizontal Edge ...\n");
+    gen_horizontal_edge("horizontal_edge", W, H);
+    
+    printf("[5/8] Checkerboard ...\n");
+    gen_checkboard("checkboard", W, H);
+    
+    printf("[6/8] Impulse ...\n");
+    gen_impulse("impulse", W, H);
+    
+    printf("[7/8] Noise (seed=42) ...\n");
+    gen_noise("noise", W, H);
+    
+    printf("[8/8] Gradient Ramp ...\n");
+    gen_gradient_ramp("gradient_ramp", W, H);
+    
+    printf("\n[OK] All test images saved to imgs/\n\n");
 }

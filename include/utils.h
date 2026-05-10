@@ -38,6 +38,7 @@ Image gen_checkboard            (const char* img_name, int W, int H, int cell_si
 Image gen_impulse               (const char* img_name, int W, int H);
 Image gen_noise                 (const char* img_name, int W, int H, unsigned int seed = 42);
 Image gen_gradient_ramp         (const char* img_name, int W, int H);
+void  gen_all                   (int W, int H, int cell_size = 32, unsigned int seed = 42);
 
 // ===== File -> utils/report.cpp ==================================================
 void report_timing_table        (const TimingResult* results, int n, const char* out_path);
