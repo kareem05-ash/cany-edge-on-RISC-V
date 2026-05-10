@@ -46,7 +46,7 @@ IMGS_DIR    := imgs
 IMG         ?= square
 W           ?= 512
 H           ?= 512
-Image		?= 0	# square by default
+I    		?= 0	# square by default
 VLEN        ?= 256
 
 # ─── GoogleTest ──────────────────────────────────────────────────────────────
@@ -177,8 +177,8 @@ autovec: $(PIPELINE) src/main.cpp
  
 count_vec_instructions:
 	@echo "Counting vector instructions in -O3 binary ..."
-	@COUNT=$$(   riscv64-linux-gnu-objdump -d $(BLD_RV)/canny_O3 | grep -c "vset" || echo 0); \
-	 COUNT_O0=$$(riscv64-linux-gnu-objdump -d $(BLD_RV)/canny_O0 | grep -c "vset" || echo 0); \
+	@COUNT=$$(   riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O3 | grep -c "vset" || echo 0); \
+	 COUNT_O0=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O0 | grep -c "vset" || echo 0); \
 	echo "  vset* instructions in -O3 binary: $$COUNT"; \
 	echo "  vset* instructions in -O0 binary: $$COUNT_O0"
  
