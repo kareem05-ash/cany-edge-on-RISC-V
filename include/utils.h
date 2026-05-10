@@ -26,6 +26,16 @@ struct SweepResult
     long            binary_kb;  // binary size in KB
 };
 
+// ====================================================================================================
+// PipelineOutputs — owns heap-allocated pipeline buffers passed back to main
+// Free with free_pipeline_outputs() when done
+// ====================================================================================================
+struct PipelineOutputs {
+    Image*   blurred;           // Gaussian output — for saving and sobel re-run
+    uint8_t* mag;               // magnitude before refinement — for visualization
+    uint8_t* out_refined;       // hysteresis output — final edge map
+};
+
 // ===== File -> utils/img_utils.cpp ==================================================
 void save_raw_u8(const char* path, const uint8_t* buf, int W, int H);
 
@@ -52,3 +62,26 @@ void report_rvv_speedup         (const TimingResult* scalar,
                                  const char* out_path);
 
 #endif
+
+// ===== File -> utils/pipeline_helpers.cpp ===========================================
+void run_pipeline(const Image&            src,
+                         int              W,
+                         int              H,
+                         int              n_iter,
+                         int              gauss_mode,
+                         bool             mag_L1,
+                         TimingResult     results[7],
+                         PipelineOutputs& out);
+
+#ifndef __riscv
+void save_outputs(const char*           img_name,
+                         int            W,
+                         int            H,
+                         const char*    suffix,
+                         const Image&   src,
+                         const Image&   blurred,
+                         const uint8_t* mag,
+                         const uint8_t* out_refined);
+#endif
+
+void free_pipeline_outputs(PipelineOutputs& p);
