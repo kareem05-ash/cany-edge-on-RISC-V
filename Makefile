@@ -129,10 +129,15 @@ $(BLD_RV)/canny_Os: $(PIPELINE) src/main.cpp
  
 $(BLD_RV)/canny_Ofast: $(PIPELINE) src/main.cpp
 	$(RV_CXX) -std=c++17 -Ofast -march=rv64gcv -static -I$(INC_DIR) $^ -o $@
+
+$(BLD_RV)/canny_O3_novec: $(PIPELINE) src/main.cpp
+	$(RV_CXX) -std=c++17 -O3 -fno-tree-vectorize -march=rv64gcv -static \
+		-I$(INC_DIR) $^ -o $@
  
 bench_all: $(BLD_RV)/canny_O0 \
            $(BLD_RV)/canny_O2 \
            $(BLD_RV)/canny_O3 \
+           $(BLD_RV)/canny_O3_novec \
            $(BLD_RV)/canny_Os \
            $(BLD_RV)/canny_Ofast
  
@@ -141,7 +146,7 @@ sweep: bench_all
 	@echo " Optimization Sweep — RISC-V QEMU VLEN=$(VLEN)"        | tee -a $(DOCS_DIR)/bench_results.txt
 	@echo " Image index: $(I)  $(W)x$(H)"                         | tee -a $(DOCS_DIR)/bench_results.txt
 	@echo "======================================================"  | tee -a $(DOCS_DIR)/bench_results.txt
-	@for FLAG in O0 O2 O3 Os Ofast; do \
+	@for FLAG in O0 O2 O3 O3_novec Os Ofast; do \
 		echo "--- -$$FLAG ---" | tee -a $(DOCS_DIR)/bench_results.txt; \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
 			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) \
@@ -216,8 +221,42 @@ tst_mag_dir: $(COMMON) src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp tsts/tst_m
 		$^ -o $(BLD_HOST)/tst_mag_dir \
 		$(GTEST_LINK)
 	./$(BLD_HOST)/tst_mag_dir
+
+tst_sobel_rv: $(COMMON) src/gaussian.cpp src/sobel.cpp tsts/tst_sobel_rv.cpp
+	$(HOST_CXX) $(HOST_FLAGS) \
+		-I$(INC_DIR) -I$(GTEST_INC) \
+		-L$(GTEST_LIB) \
+		$^ -o $(BLD_HOST)/tst_sobel_rv \
+		$(GTEST_LINK)
+	./$(BLD_HOST)/tst_sobel_rv
+
+tst_edge_refinement: $(COMMON) src/gaussian.cpp src/sobel.cpp \
+                     src/mag_dir.cpp src/edge_refinement.cpp \
+                     tsts/tst_edge_refinement.cpp
+	$(HOST_CXX) $(HOST_FLAGS) \
+		-I$(INC_DIR) -I$(GTEST_INC) \
+		-L$(GTEST_LIB) \
+		$^ -o $(BLD_HOST)/tst_edge_refinement \
+		$(GTEST_LINK)
+	./$(BLD_HOST)/tst_edge_refinement
+
+test: tst_img_io tst_gaussian tst_sobel tst_mag_dir tst_sobel_rv tst_edge_refinement
  
-test: tst_img_io tst_gaussian tst_sobel tst_mag_dir
+# ===========================================================================================
+# PHASE 3 — QEMU-side RVV equivalence test
+# Cross-compiles assert-based test and runs at VLEN=128, 256, 512.
+# ===========================================================================================
+$(BLD_RV)/tst_rvv_equiv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+                          src/mag_dir.cpp tsts/tst_rvv_equiv.cpp
+	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
+
+tst_rvv_equiv: $(BLD_RV)/tst_rvv_equiv
+	@echo "=== VLEN=128 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=128 $(BLD_RV)/tst_rvv_equiv
+	@echo "=== VLEN=256 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/tst_rvv_equiv
+	@echo "=== VLEN=512 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/tst_rvv_equiv
  
 # ===========================================================================================
 # CLEAN
@@ -236,8 +275,9 @@ clean_all: clean clean_imgs clean_docs
 # ===========================================================================================
 # PHONY
 # ===========================================================================================
-.PHONY: all canny_rv                                   \
-        run_target run_host run_all                    \
-        bench_all sweep autovec count_vec_instructions \
-        tst_img_io tst_gaussian tst_sobel tst_mag_dir  \
+.PHONY: all canny_rv                                        \
+        run_target run_host run_all                         \
+        bench_all sweep autovec count_vec_instructions      \
+        tst_img_io tst_gaussian tst_sobel tst_mag_dir       \
+        tst_sobel_rv tst_rvv_equiv tst_edge_refinement      \
         test clean clean_imgs clean_docs clean_all

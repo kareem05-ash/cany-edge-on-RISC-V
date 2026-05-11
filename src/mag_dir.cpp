@@ -17,7 +17,10 @@ void compute_magnitude(const int16_t* gx,
     // Temporary buffer to hold raw (un-normalized) magnitudes
     // We use int32_t to avoid overflow (max L1 = 255*4 + 255*4 = ~2040, safe in int16
     // but L2 needs int32 for the squared values)
-    int32_t* tmp = new int32_t[n];
+    // aligned_alloc requires size to be a multiple of the alignment (64 bytes).
+    size_t tmp_bytes = static_cast<size_t>(n) * sizeof(int32_t);
+    tmp_bytes = (tmp_bytes + 63) & ~static_cast<size_t>(63);
+    int32_t* tmp = static_cast<int32_t*>(aligned_alloc(64, tmp_bytes));
 
     // --- Pass 1: compute raw magnitudes ---
     int32_t max_val = 0;
@@ -52,7 +55,7 @@ void compute_magnitude(const int16_t* gx,
         }
     }
 
-    delete[] tmp;
+    free(tmp);
 }
 
 // ----------------->Part2:Direction Calculations<-----------------
