@@ -12,8 +12,10 @@ using namespace std;
 
 
 // ===============================
-// Save Image to host machiene
+// Save Image to host machine
+// (host only — file paths don't exist on the RISC-V target)
 // ===============================
+#ifndef __riscv
 void save_to_mach(const Image& img, const char* img_name, int W, int H)
 {
     char path[512];
@@ -26,6 +28,7 @@ void save_to_mach(const Image& img, const char* img_name, int W, int H)
 
     std::printf("   > Image Saved -> %s\n", path);
 }
+#endif // __riscv
 
 // ===============================
 //     >> White Square
@@ -188,7 +191,9 @@ Image gen_gradient_ramp(int W, int H)
 
 // ===============================
 //     >> Generate All Images
+// (host only — saves to imgs/ via file I/O; not available on RISC-V target)
 // ===============================
+#ifndef __riscv
 void  gen_all(int W, int H, int cell_size, unsigned int seed)
 {
     printf("[1/8] White Square ...\n");
@@ -225,3 +230,4 @@ void  gen_all(int W, int H, int cell_size, unsigned int seed)
     
     printf("\n[OK] All test images saved to imgs/\n\n");
 }
+#endif // __riscv

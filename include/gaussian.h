@@ -27,7 +27,11 @@ inline constexpr int16_t GAUSS_KERNEL[5][5] = {
 // approximation [1 4 7 4 1] sums to 17.
 inline constexpr int16_t GAUSS_KERNEL_1D[5] = { 1, 4, 7, 4, 1 };
 static constexpr int GAUSS_SUM_1D  = 17;   // sum of GAUSS_KERNEL_1D
-static constexpr int GAUSS_SUM_SEP = 289;  // 17 * 17, combined divisor for 2-pass
+// GAUSS_SUM_SEP = 17*17 = 289: combined divisor for the two-pass separable filter.
+// Defined here as documentation — explains why separable output differs from
+// gaussian_blur by up to ±3 LSB (289 vs 273 normalisation).
+// Not used in code directly; each pass divides by GAUSS_SUM_1D individually.
+[[maybe_unused]] static constexpr int GAUSS_SUM_SEP = 289;
 
 // ─── Template 2-D convolution ─────────────────────────────────────────────────
 //

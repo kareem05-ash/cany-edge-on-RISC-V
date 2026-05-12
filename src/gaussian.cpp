@@ -1,6 +1,7 @@
 #include "gaussian.h"
 #include <cstdint>
-#include <cstdlib>  // aligned_alloc, free
+#include <cstdlib>   // aligned_alloc, free
+#include <cstring>   // memset
 
 // ─── Kernel pointer table for convolve2d ─────────────────────────────────────
 //
@@ -151,7 +152,7 @@ void gaussian_blur_padded(const Image& src, Image& dst) {
     size_t pad_bytes = static_cast<size_t>(PW * PH);
     pad_bytes = (pad_bytes + 63) & ~static_cast<size_t>(63); // align to 64 bytes
     uint8_t* padded = static_cast<uint8_t*>(aligned_alloc(64, pad_bytes));
-    for (int i = 0; i < PW * PH; ++i) padded[i] = 0;
+    memset(padded, 0, pad_bytes);  // zero-pad border (faster than a manual loop)
 
     // Step 2: copy original image into center of padded buffer
     // Row y of src goes to row (y+R) of padded, starting at column R

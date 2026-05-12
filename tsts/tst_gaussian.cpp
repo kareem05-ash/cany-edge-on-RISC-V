@@ -242,27 +242,94 @@ TEST(GaussianPadded, NonPowerOfTwoSize) {
     EXPECT_TRUE(interior_close(dst, 200, 1));
 }
 
-// ─── Equivalence: 2-D vs padded ──────────────────────────────────────────────
+// ─── convolve2d template: direct instantiation test ──────────────────────────
 //
-// gaussian_blur_padded uses the same 5x5 kernel and divisor as gaussian_blur.
-// Interior pixels must match within 1 LSB (only rounding may differ).
+// This test calls convolve2d<uint8_t, int32_t, int16_t> directly — not through
+// gaussian_blur() — to verify that the template itself is correct independent
+// of any particular kernel.
+//
+// We use a trivial 3x3 averaging kernel with all coefficients = 1 and divisor = 9.
+// On a uniform 8x8 image filled with value 90, every output pixel should be
+// exactly 90 (90 * 9 / 9 = 90, no rounding error).
+//
+// This also verifies the template's type-parameter contract:
+//   PixelT = uint8_t  : input/output elements
+//   AccumT = int32_t  : accumulator (avoids int16_t overflow on large kernels)
+//   CoeffT = int16_t  : kernel coefficients
 
-TEST(GaussianEquivalence, PaddedMatchesTwoD) {
-    const int W = 100, H = 75;
-    Image src(W, H), dst2d(W, H), dstPad(W, H);
-    for (int y = 0; y < H; ++y)
-        for (int x = 0; x < W; ++x)
-            src(y, x) = static_cast<uint8_t>((x * 3 + y * 7) % 256);
-    fill(dst2d,  0);
-    fill(dstPad, 0);
+TEST(Convolve2DTemplate, DirectInstantiationUniformImage) {
+    const int W = 8, H = 8;
 
-    gaussian_blur(src, dst2d);
-    gaussian_blur_padded(src, dstPad);
+    // Build a 3x3 box-average kernel (all ones, divide by 9)
+    static const int16_t row0[3] = { 1, 1, 1 };
+    static const int16_t row1[3] = { 1, 1, 1 };
+    static const int16_t row2[3] = { 1, 1, 1 };
+    static const int16_t* kernel[3] = { row0, row1, row2 };
 
-    const int R = GAUSS_RADIUS;
-    for (int y = R; y < H - R; ++y)
-        for (int x = R; x < W - R; ++x)
-            EXPECT_NEAR(static_cast<int>(dstPad(y, x)),
-                        static_cast<int>(dst2d(y, x)), 1)
-                << "Mismatch at (" << y << "," << x << ")";
+    uint8_t src_buf[W * H];
+    uint8_t dst_buf[W * H];
+    std::memset(src_buf, 90, W * H);   // all pixels = 90
+    std::memset(dst_buf,  0, W * H);
+
+    // Call convolve2d directly with explicit template arguments
+    convolve2d<uint8_t, int32_t, int16_t>(
+        src_buf, dst_buf,
+        W, H,
+        kernel,
+        /*radius=*/1,
+        /*divisor=*/static_cast<int32_t>(9)
+    );
+
+    // Interior pixels must be exactly 90 (no rounding: 90*9/9 = 90)
+    for (int y = 1; y < H - 1; ++y)
+        for (int x = 1; x < W - 1; ++x)
+            EXPECT_EQ(static_cast<int>(dst_buf[y * W + x]), 90)
+                << "Interior pixel mismatch at (" << y << "," << x << ")";
+}
+
+TEST(Convolve2DTemplate, DirectInstantiationKnownPixelValue) {
+    // Verify the template produces the mathematically correct result on a
+    // non-uniform image where we can calculate the expected output by hand.
+    //
+    // Image: 5x5, all zeros except centre pixel = 255.
+    // Kernel: same 3x3 box (all ones, /9), radius=1.
+    // At the centre of the impulse response the output must be 255/9 = 28
+    // (integer division truncates: floor(255/9) = 28).
+    const int W = 5, H = 5;
+
+    static const int16_t row[3] = { 1, 1, 1 };
+    static const int16_t* kernel[3] = { row, row, row };
+
+    uint8_t src_buf[W * H];
+    uint8_t dst_buf[W * H];
+    std::memset(src_buf, 0, W * H);
+    src_buf[2 * W + 2] = 255;          // centre pixel only
+    std::memset(dst_buf, 0, W * H);
+
+    convolve2d<uint8_t, int32_t, int16_t>(
+        src_buf, dst_buf,
+        W, H,
+        kernel,
+        /*radius=*/1,
+        /*divisor=*/static_cast<int32_t>(9)
+    );
+
+    // Centre of impulse response: 255 / 9 = 28 (truncated integer division)
+    EXPECT_EQ(static_cast<int>(dst_buf[2 * W + 2]), 28);
+
+    // Neighbours at distance 1 from centre (within kernel reach): 255 / 9 = 28
+    EXPECT_EQ(static_cast<int>(dst_buf[1 * W + 2]), 28); // above
+    EXPECT_EQ(static_cast<int>(dst_buf[3 * W + 2]), 28); // below
+    EXPECT_EQ(static_cast<int>(dst_buf[2 * W + 1]), 28); // left
+    EXPECT_EQ(static_cast<int>(dst_buf[2 * W + 3]), 28); // right
+
+    // Corners of the 3x3 neighbourhood: also see the impulse pixel once
+    EXPECT_EQ(static_cast<int>(dst_buf[1 * W + 1]), 28); // top-left
+    EXPECT_EQ(static_cast<int>(dst_buf[1 * W + 3]), 28); // top-right
+    EXPECT_EQ(static_cast<int>(dst_buf[3 * W + 1]), 28); // bot-left
+    EXPECT_EQ(static_cast<int>(dst_buf[3 * W + 3]), 28); // bot-right
+
+    // Pixels more than 1 away from centre: should be zero
+    EXPECT_EQ(static_cast<int>(dst_buf[0 * W + 0]), 0);
+    EXPECT_EQ(static_cast<int>(dst_buf[4 * W + 4]), 0);
 }

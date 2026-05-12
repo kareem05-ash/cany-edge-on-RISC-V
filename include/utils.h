@@ -40,7 +40,7 @@ struct PipelineOutputs {
 void save_raw_u8(const char* path, const uint8_t* buf, int W, int H);
 
 // ===== File -> utils/gen_imgs.cpp ==================================================
-void save_to_mach               (const Image& img, const char* img_name, int W, int H);
+// Individual generators are cross-platform (pure in-memory, no file I/O)
 Image gen_white_square          (int W, int H);
 Image gen_circle                (int W, int H);
 Image gen_vertical_edge         (int W, int H);
@@ -49,7 +49,12 @@ Image gen_checkboard            (int W, int H, int cell_size = 32);
 Image gen_impulse               (int W, int H);
 Image gen_noise                 (int W, int H, unsigned int seed = 42);
 Image gen_gradient_ramp         (int W, int H);
-void  gen_all                   (int W, int H, int cell_size = 32, unsigned int seed = 42);
+
+// save_to_mach and gen_all do file I/O — host only
+#ifndef __riscv
+void save_to_mach               (const Image& img, const char* img_name, int W, int H);
+void gen_all                    (int W, int H, int cell_size = 32, unsigned int seed = 42);
+#endif
 
 // ===== File -> utils/report.cpp ==================================================
 void report_timing_table        (const TimingResult* results, int n, const char* out_path);

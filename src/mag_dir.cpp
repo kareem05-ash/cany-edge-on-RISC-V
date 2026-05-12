@@ -14,9 +14,11 @@ void compute_magnitude(const int16_t* gx,
 {
     int n = width * height;
 
-    // Temporary buffer to hold raw (un-normalized) magnitudes
-    // We use int32_t to avoid overflow (max L1 = 255*4 + 255*4 = ~2040, safe in int16
-    // but L2 needs int32 for the squared values)
+    // Temporary buffer to hold raw (un-normalized) magnitudes.
+    // int32_t is required because:
+    //   L1: max = |Gx| + |Gy| <= 1020 + 1020 = 2040  (fits int16, but int32 for safety)
+    //   L2: intermediate Gx^2 + Gy^2 can reach 65025 + 65025 = 130050 (needs int32,
+    //       does NOT fit in int16_t which tops out at 32767)
     // aligned_alloc requires size to be a multiple of the alignment (64 bytes).
     size_t tmp_bytes = static_cast<size_t>(n) * sizeof(int32_t);
     tmp_bytes = (tmp_bytes + 63) & ~static_cast<size_t>(63);

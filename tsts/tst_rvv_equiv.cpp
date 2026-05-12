@@ -1,13 +1,26 @@
 // tsts/tst_rvv_equiv.cpp
-// QEMU-side assert-based equivalence test.
-// Compares scalar vs RVV output at VLEN=128, 256, 512.
-// Compiled with riscv64-unknown-elf-g++ and run via:
+// ─────────────────────────────────────────────────────────────────────────────
+// QEMU-side assert-based test suite — cross-compiled for RISC-V.
+//
+// Current state (Phase 5 baseline):
+//   Tests 1-4 verify SCALAR correctness on the RISC-V target at any VLEN.
+//   They serve as the known-good baseline that Phase 6 RVV output must match.
+//
+// Phase 6 plan (RVV stubs below, marked TODO):
+//   Each scalar test will gain a paired RVV call. Both run on the same input;
+//   outputs are compared pixel-by-pixel within ±1 LSB tolerance.
+//   If the output differs between VLEN=128, 256, 512, the RVV code has a
+//   hardcoded VLEN assumption — a fundamental correctness bug.
+//
+// Run at all three VLEN values:
 //   qemu-riscv64 -cpu rv64,v=true,vlen=128 build/riscv/tst_rvv_equiv
 //   qemu-riscv64 -cpu rv64,v=true,vlen=256 build/riscv/tst_rvv_equiv
 //   qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/tst_rvv_equiv
 //
-// Uses non-power-of-two size (100x75) to force strip-mining tail case.
-// Tolerance: +-1 LSB (one rounding difference is acceptable).
+// Uses non-power-of-two size (100x75) to force the strip-mining tail case:
+//   100 % vl != 0 for typical VLEN values (vl=4 at VLEN=128, 8 at 256, 16 at 512).
+//   Strip-mining bugs only appear in the tail iteration — this size exposes them.
+// ─────────────────────────────────────────────────────────────────────────────
 
 #include "gaussian.h"
 #include "sobel.h"
@@ -132,7 +145,7 @@ static void test_direction_range() {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 int main() {
-    printf("\n=== RVV Equivalence Tests (QEMU-side) ===\n");
+    printf("\n=== QEMU-side Scalar Baseline Tests (Phase 5) ===\n");
     printf("Image size: %dx%d (non-power-of-two, forces strip-mining tail)\n\n",
            W, H);
 
@@ -141,6 +154,8 @@ int main() {
     test_magnitude_nonzero();
     test_direction_range();
 
-    printf("\n=== All tests PASSED ===\n\n");
+    printf("\n=== All scalar baseline tests PASSED ===\n");
+    printf("Phase 6 TODO: add rvv_gaussian(), rvv_magnitude() calls above\n");
+    printf("              and compare their output against scalar within +-1 LSB\n\n");
     return 0;
 }

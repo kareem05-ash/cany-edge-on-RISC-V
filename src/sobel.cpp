@@ -11,43 +11,52 @@
 // → Use RVV intrinsics to manually vectorize the inner loop
 // ─────────────────────────────────────────────────────────────────────────
 #include "sobel.h"
-#include <cstdint>                                   
-void sobel (const Image& src, int16_t* Gx, int16_t* Gy){
-    
-    static const int16_t Kx[3][3] = {                                               // Sobel X Kernal: detects vertical edges
+#include <cstdint>
+
+void sobel(const Image& src, int16_t* Gx, int16_t* Gy) {
+
+    static const int16_t Kx[3][3] = {              // Sobel X kernel: detects vertical edges
         {-1, 0, 1},
         {-2, 0, 2},
         {-1, 0, 1}
     };
-    
-    static const int16_t Ky[3][3] = {                                               // Sobel Y Kernal: detects horizontal edges 
+
+    static const int16_t Ky[3][3] = {              // Sobel Y kernel: detects horizontal edges
         {-1, -2, -1},
-        {0,  0,  0},
-        {1,  2,  1}
+        { 0,  0,  0},
+        { 1,  2,  1}
     };
-    const int R=Sob_Rad; 
-    for(int y=0; y<src.height; y++){
-        for(int x=0; x<src.width; x++){
-            
-            int16_t gx = 0, gy = 0;
-    
-                for(int ky=-R; ky<=R; ky++){
-                    for(int kx=-R; kx<=R; kx++){
-                        
-                        int sy = y + ky;                                            // Slide 3*3 Matrix
-                        int sx = x + kx;
-    
-                        uint8_t pixel = 0;                                          // Zero_Padding
-                        if (sy>= 0 && sy<src.height  && sx>= 0 && sx<src.width){
-                            
-                            pixel = src.data[sy *src.width + sx];                   
-                        }                            
-                            gx += static_cast<int16_t>(pixel) * Kx[ky+R][kx+R];     // Calculate gx on all simple matrix
-                            gy += static_cast<int16_t>(pixel) * Ky[ky+R][kx+R];    // Calculate gy on all simple matrix
-                    }                   
+
+    const int R = Sob_Rad;
+
+    for (int y = 0; y < src.height; y++) {
+        for (int x = 0; x < src.width; x++) {
+
+            int32_t gx = 0, gy = 0;
+
+            for (int ky = -R; ky <= R; ky++) {
+                for (int kx = -R; kx <= R; kx++) {
+
+                    int sy = y + ky;
+                    int sx = x + kx;
+
+                    // Zero-padding: out-of-bounds pixels contribute 0.
+                    // pixel defaults to 0; the accumulation ALWAYS runs
+                    // (gx += 0 * coeff = 0) — this is intentional.
+                    // NOTE: gx+= and gy+= are OUTSIDE the if-block.
+                    uint8_t pixel = 0;
+                    if (sy >= 0 && sy < src.height && sx >= 0 && sx < src.width) {
+                        pixel = src.data[sy * src.width + sx];
+                    }
+                    // These two lines are outside the if — they always execute.
+                    // When pixel==0 (out-of-bounds), the contribution is 0.
+                    gx += static_cast<int16_t>(pixel) * Kx[ky + R][kx + R];
+                    gy += static_cast<int16_t>(pixel) * Ky[ky + R][kx + R];
                 }
-         Gx[y *src.width + x] = gx;                                                 // Store Gx in SOA
-         Gy[y *src.width + x] = gy;                                                 // Store Gy in SOA
-        }  
+            }
+
+            Gx[y * src.width + x] = static_cast<int16_t>(gx); // Store in SoA layout
+            Gy[y * src.width + x] = static_cast<int16_t>(gy);
+        }
     }
-}    
+}

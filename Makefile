@@ -19,6 +19,7 @@
 #   make autovec                — generate auto-vectorization report
 #   make count_vec_instructions — count vset* instructions in -O3 binary
 #   make canny_rv               — cross-compile default pipeline binary
+#   make verify_rvv             — Phase 1 check: RVV intrinsics hello-world at VLEN 128/256/512
 #   make clean                  — remove all build artifacts
 #
 # Image index I:
@@ -33,7 +34,7 @@ RV_CXX      := riscv64-unknown-elf-g++
 
 # ─── Flags ───────────────────────────────────────────────────────────────────
 HOST_FLAGS  := -std=c++17 -Wall -Wextra -O2
-RV_FLAGS    := -std=c++17 -Wall -Wextra -march=rv64gcv -static
+RV_FLAGS    := -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static
 
 # ─── Directories ─────────────────────────────────────────────────────────────
 INC_DIR     := include
@@ -259,6 +260,22 @@ tst_rvv_equiv: $(BLD_RV)/tst_rvv_equiv
 		qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/tst_rvv_equiv
  
 # ===========================================================================================
+# PHASE 1 — RVV toolchain verification
+# Compiles tools/rvv_verify.cpp and runs it at VLEN=128, 256, and 512.
+# All 16 results must show OK at every VLEN before proceeding to Phase 6.
+# ===========================================================================================
+$(BLD_RV)/rvv_verify: tools/rvv_verify.cpp
+	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
+
+verify_rvv: $(BLD_RV)/rvv_verify
+	@echo "=== VLEN=128 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=128 $(BLD_RV)/rvv_verify
+	@echo "=== VLEN=256 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/rvv_verify
+	@echo "=== VLEN=512 ===" && \
+		qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/rvv_verify
+
+# ===========================================================================================
 # CLEAN
 # ===========================================================================================
 clean:
@@ -278,6 +295,7 @@ clean_all: clean clean_imgs clean_docs
 .PHONY: all canny_rv                                        \
         run_target run_host run_all                         \
         bench_all sweep autovec count_vec_instructions      \
+        verify_rvv                                          \
         tst_img_io tst_gaussian tst_sobel tst_mag_dir       \
         tst_sobel_rv tst_rvv_equiv tst_edge_refinement      \
         test clean clean_imgs clean_docs clean_all
