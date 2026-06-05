@@ -1,0 +1,216 @@
+# ==============================================================================
+#  .github/workflows/ci.yml
+#  Canny Edge Detection on RISC-V — CI Pipeline
+#
+#  Two jobs:
+#
+#  [1] build-and-test  (GitHub-hosted ubuntu-latest)
+#        - Builds GoogleTest from source
+#        - Caches the RISC-V toolchain (/opt/riscv) keyed on toolchain commit
+#        - Builds toolchain from source on cache miss (slow first run only)
+#        - Installs QEMU via apt (qemu-user-static)
+#        - Runs host-side GoogleTest suite  (make test)
+#        - Cross-compiles the full pipeline (make canny_rv)
+#        - Runs RVV equivalence tests on QEMU at VLEN 128/256/512
+#        - Runs optimization sweep         (make sweep)
+#
+#  [2] verify-env  (self-hosted runner: riscv — your WSL2 machine)
+#        - Runs scripts/verify.sh against your actual local environment
+#        - Confirms toolchain, QEMU, GoogleTest, Python, and RVV smoke test
+#        - Only runs on push to main/polish (not PRs — machine may be offline)
+#
+# ==============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, polish]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs on the same branch when a new push arrives
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ==============================================================================
+#  JOB 1 — build-and-test
+#  Runs on GitHub-hosted runner. Full cross-compile + test pipeline.
+# ==============================================================================
+jobs:
+  build-and-test:
+    name: Build & Test (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120        # toolchain build can take ~60-90 min on cold cache
+
+    steps:
+
+    # ── Checkout ──────────────────────────────────────────────────────────────
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # ── System dependencies ───────────────────────────────────────────────────
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y \
+          autoconf automake build-essential bison flex texinfo gperf libtool \
+          patchutils bc git cmake ninja-build pkg-config \
+          libglib2.0-dev libpixman-1-dev libslirp-dev \
+          libmpc-dev libmpfr-dev libgmp-dev zlib1g-dev libexpat1-dev \
+          qemu-user-static \
+          python3 python3-pip
+
+    # ── QEMU symlink (qemu-user-static installs as qemu-riscv64-static) ───────
+    - name: Expose qemu-riscv64 on PATH
+      run: |
+        if command -v qemu-riscv64-static &>/dev/null && \
+           ! command -v qemu-riscv64 &>/dev/null; then
+          sudo ln -s "$(which qemu-riscv64-static)" /usr/local/bin/qemu-riscv64
+        fi
+        qemu-riscv64 --version
+
+    # ── Toolchain cache ───────────────────────────────────────────────────────
+    # Key = OS + the HEAD commit of the upstream toolchain repo.
+    # On a cache hit the 60-90 min build is skipped entirely.
+    - name: Get riscv-gnu-toolchain HEAD commit
+      id: tc_commit
+      run: |
+        COMMIT=$(git ls-remote https://github.com/riscv-collab/riscv-gnu-toolchain HEAD \
+                 | cut -f1 | cut -c1-12)
+        echo "sha=$COMMIT" >> "$GITHUB_OUTPUT"
+        echo "Toolchain HEAD: $COMMIT"
+
+    - name: Restore toolchain cache
+      id: tc_cache
+      uses: actions/cache@v4
+      with:
+        path: /opt/riscv
+        key: riscv-toolchain-rv64gcv-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}
+
+    # ── Build toolchain (only on cache miss) ──────────────────────────────────
+    - name: Build RISC-V GNU toolchain from source
+      if: steps.tc_cache.outputs.cache-hit != 'true'
+      run: |
+        cd "$HOME"
+        git clone --depth 1 --recursive --shallow-submodules \
+          https://github.com/riscv-collab/riscv-gnu-toolchain
+        cd riscv-gnu-toolchain
+        ./configure \
+          --prefix=/opt/riscv \
+          --with-arch=rv64gcv \
+          --with-abi=lp64d
+        sudo mkdir -p /opt/riscv
+        sudo chown "$USER" /opt/riscv
+        make -j$(nproc)
+
+    - name: Add toolchain to PATH
+      run: echo "/opt/riscv/bin" >> "$GITHUB_PATH"
+
+    - name: Verify toolchain
+      run: |
+        riscv64-unknown-elf-g++ --version
+        echo "int main(){return 0;}" > /tmp/tc_check.cpp
+        riscv64-unknown-elf-g++ -march=rv64gcv -mabi=lp64d -static \
+          /tmp/tc_check.cpp -o /tmp/tc_check
+        echo "Toolchain OK"
+
+    # ── GoogleTest ────────────────────────────────────────────────────────────
+    - name: Restore GoogleTest cache
+      id: gtest_cache
+      uses: actions/cache@v4
+      with:
+        path: ~/googletest-install
+        key: googletest-${{ runner.os }}-v1
+
+    - name: Build GoogleTest
+      if: steps.gtest_cache.outputs.cache-hit != 'true'
+      run: |
+        cd "$HOME"
+        git clone --depth 1 https://github.com/google/googletest.git
+        cd googletest
+        mkdir build && cd build
+        cmake .. \
+          -DCMAKE_INSTALL_PREFIX="$HOME/googletest-install" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=OFF
+        make -j$(nproc)
+        make install
+
+    - name: Verify GoogleTest
+      run: |
+        test -f "$HOME/googletest-install/lib/libgtest.a"
+        test -f "$HOME/googletest-install/include/gtest/gtest.h"
+        echo "GoogleTest OK"
+
+    # ── Python packages ───────────────────────────────────────────────────────
+    - name: Install Python packages
+      run: |
+        python3 -m pip install --break-system-packages numpy matplotlib
+
+    # ── Host-side GoogleTest suite ────────────────────────────────────────────
+    - name: Run host-side tests (make test)
+      run: make test
+
+    # ── Cross-compile pipeline ────────────────────────────────────────────────
+    - name: Cross-compile RISC-V pipeline (make canny_rv)
+      run: make canny_rv
+
+    # ── RVV equivalence tests on QEMU ─────────────────────────────────────────
+    - name: Build RVV equivalence test binary
+      run: |
+        make $(BLD_RV)/test_rvv_equiv || \
+        make -f Makefile build/riscv/test_rvv_equiv || \
+        ( \
+          riscv64-unknown-elf-g++ \
+            -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static \
+            -Iinclude \
+            src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+            src/mag_dir.cpp tests/test_rvv_equiv.cpp \
+            -o build/riscv/test_rvv_equiv \
+        )
+
+    - name: RVV equivalence test — VLEN=128
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=128 build/riscv/test_rvv_equiv
+
+    - name: RVV equivalence test — VLEN=256
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=256 build/riscv/test_rvv_equiv
+
+    - name: RVV equivalence test — VLEN=512
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/test_rvv_equiv
+
+    # ── Optimization sweep ────────────────────────────────────────────────────
+    - name: Optimization sweep (make sweep)
+      run: make sweep W=256 H=256 I=2 VLEN=256
+
+    # ── Upload sweep results as artifact ─────────────────────────────────────
+    - name: Upload bench results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bench-results-${{ github.sha }}
+        path: docs/bench_results.txt
+        retention-days: 30
+
+# ==============================================================================
+#  JOB 2 — verify-env
+#  Runs on your self-hosted WSL2 machine (label: riscv-dev).
+#  Calls scripts/verify.sh which checks the full local environment.
+#  Only on push — not PRs, since your machine may be offline.
+# ==============================================================================
+  verify-env:
+    name: Verify Local Environment (riscv-dev)
+    runs-on: [self-hosted, riscv-dev]
+    if: github.event_name == 'push'
+    timeout-minutes: 10
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run environment verification
+      run: |
+        chmod +x scripts/verify.sh
+        ./scripts/verify.sh
