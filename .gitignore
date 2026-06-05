@@ -1,6 +1,8 @@
 # Build outputs
 build/host/*
 build/riscv/*
+!build/host/.gitkeep
+!build/riscv/.gitkeep
 
 # Generated images and reports
 imgs/*.raw
