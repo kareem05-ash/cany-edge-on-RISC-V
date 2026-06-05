@@ -1,8 +1,8 @@
-#include <gtest/gtest.h>
 #include "img_io.h"
 #include <cstring>
+#include <gtest/gtest.h>
 
-const char* TEST_PATH = "/tmp/test_img.raw";
+const char *TEST_PATH = "/tmp/test_img.raw";
 
 // ─── Test 1: Save then Reload ─────────────────────────────────────────────
 TEST(ImageIO, SaveThenReload) {
@@ -18,8 +18,7 @@ TEST(ImageIO, SaveThenReload) {
 
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
-            EXPECT_EQ(loaded(y, x), original(y, x))
-                << "Mismatch at (" << y << ", " << x << ")";
+            EXPECT_EQ(loaded(y, x), original(y, x)) << "Mismatch at (" << y << ", " << x << ")";
 }
 
 // ─── Test 2: Uniform Image ────────────────────────────────────────────────
@@ -34,8 +33,7 @@ TEST(ImageIO, UniformImage) {
 
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
-            EXPECT_EQ(loaded(y, x), 128)
-                << "Mismatch at (" << y << ", " << x << ")";
+            EXPECT_EQ(loaded(y, x), 128) << "Mismatch at (" << y << ", " << x << ")";
 }
 
 // ─── Test 3: Boundary Values ──────────────────────────────────────────────
@@ -53,8 +51,7 @@ TEST(ImageIO, BoundaryValues) {
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++) {
             uint8_t expected = (x % 2 == 0) ? 0 : 255;
-            EXPECT_EQ(loaded(y, x), expected)
-                << "Mismatch at (" << y << ", " << x << ")";
+            EXPECT_EQ(loaded(y, x), expected) << "Mismatch at (" << y << ", " << x << ")";
         }
 }
 
@@ -72,8 +69,7 @@ TEST(ImageIO, NonPowerOfTwoSize) {
 
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
-            EXPECT_EQ(loaded(y, x), img(y, x))
-                << "Mismatch at (" << y << ", " << x << ")";
+            EXPECT_EQ(loaded(y, x), img(y, x)) << "Mismatch at (" << y << ", " << x << ")";
 }
 
 // ─── Test 5: operator() Read and Write ───────────────────────────────────
@@ -85,7 +81,7 @@ TEST(ImageIO, PixelAccessOperator) {
     img(9, 9) = 200;
     img(5, 5) = 128;
 
-    const Image& ref = img;
+    const Image &ref = img;
     EXPECT_EQ(ref(0, 0), 42);
     EXPECT_EQ(ref(9, 9), 200);
     EXPECT_EQ(ref(5, 5), 128);
@@ -94,5 +90,5 @@ TEST(ImageIO, PixelAccessOperator) {
 // ─── Test 6: size() correctness ──────────────────────────────────────────
 TEST(ImageIO, SizeFunction) {
     EXPECT_EQ(Image(100, 75).size(), 7500);
-    EXPECT_EQ(Image(64,  64).size(), 4096);
+    EXPECT_EQ(Image(64, 64).size(), 4096);
 }

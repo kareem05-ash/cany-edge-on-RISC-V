@@ -2,9 +2,9 @@
 #include <cstdio>
 #include <cstdlib>
 
-Image load_img(const char* path, int width, int height) {
+Image load_img(const char *path, int width, int height) {
     // Open file in binary read mode
-    FILE* f = fopen(path, "rb");
+    FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "Error: can't open file %s\n", path);
         exit(1);
@@ -18,8 +18,8 @@ Image load_img(const char* path, int width, int height) {
 
     // Invalid width/height
     if ((int)bytes_read != img.size()) {
-        fprintf(stderr, "Error: expected %d bytes, got %zu from %s\n", 
-                img.size(), bytes_read, path);
+        fprintf(stderr, "Error: expected %d bytes, got %zu from %s\n", img.size(), bytes_read,
+                path);
         fclose(f);
         exit(1);
     }
@@ -28,9 +28,9 @@ Image load_img(const char* path, int width, int height) {
     return img;
 }
 
-void save_img(const char* path, const Image& img) {
+void save_img(const char *path, const Image &img) {
     // Open file in binary write mode
-    FILE* f = fopen(path, "wb");
+    FILE *f = fopen(path, "wb");
     if (!f) {
         fprintf(stderr, "Error: can't create file %s\n", path);
         exit(1);
@@ -41,8 +41,8 @@ void save_img(const char* path, const Image& img) {
 
     // Invalid width/hegith
     if ((int)bytes_written != img.size()) {
-        fprintf(stderr, "Error: expected to write %d bytes, wrote %zu to %s\n",
-                img.size(), bytes_written, path);
+        fprintf(stderr, "Error: expected to write %d bytes, wrote %zu to %s\n", img.size(),
+                bytes_written, path);
         fclose(f);
         exit(1);
     }

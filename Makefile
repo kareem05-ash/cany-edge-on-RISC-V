@@ -74,6 +74,79 @@ PIPELINE    := src/img_io.cpp      \
 $(shell mkdir -p $(BLD_HOST) $(BLD_RV) $(DOCS_DIR) $(IMGS_DIR))
 
 # ===========================================================================================
+# HELP
+# ===========================================================================================
+
+help:
+	@echo "Available targets:"
+	@echo ""
+	@echo "  make run_host [W=.. H=.. I=..]        	: Run pipeline natively on host"
+	@echo "  make run_target [W=.. H=.. I=..]      	: Run RISC-V binary under QEMU"
+	@echo "  make run_all                          	: Run QEMU with VLEN=128/256/512"
+	@echo ""	
+	@echo "  make test                             	: Run all GoogleTest unit + integration tests"
+	@echo "  make test_img_io                      	: Test image I/O module"
+	@echo "  make test_gaussian                    	: Test Gaussian filter"
+	@echo "  make test_sobel                       	: Test Sobel edge detection"
+	@echo "  make test_mag_dir                     	: Test magnitude & direction"
+	@echo "  make test_edge_refinement             	: Test edge refinement stage"
+	@echo ""	
+	@echo "  make test_rvv_equiv                   	: Run RVV equivalence tests (VLEN sweep)"
+	@echo "  make verify_rvv                       	: Verify RVV toolchain correctness"
+	@echo ""	
+	@echo "  make sweep                            	: Benchmark optimization levels on QEMU"
+	@echo "  make autovec                          	: Generate auto-vectorization report"
+	@echo "  make count_vec_instructions           	: Count RVV instructions in binaries"
+	@echo ""	
+	@echo "  make canny_rv                         	: Build RISC-V binary (default config)"
+	@echo "  make clean                            	: Remove build artifacts"
+	@echo "  make clean_all                        	: Clean everything (build + imgs + docs)"
+	@echo ""	
+	@echo "  make format                           	: Auto-format all C/C++ source files using clang-format"
+	@echo "  make package                          	: Generate a package of the whole project (zip)"
+	@echo "  make help				    	: Shows this message"
+
+# ===========================================================================================
+# PACKAGING
+# ===========================================================================================
+
+ZIP_NAME := canny-edge-riscv.zip
+
+package:
+	@command -v zip >/dev/null 2>&1 || { \
+		echo "Error: zip is not installed. Install it via:"; \
+		echo "  sudo apt install zip"; \
+		exit 1; \
+	}
+
+	@echo "Creating $(ZIP_NAME)..."
+
+	@if [ -f $(ZIP_NAME) ]; then \
+		echo "Removing existing $(ZIP_NAME)"; \
+		rm -f $(ZIP_NAME); \
+	fi
+
+	@zip -r $(ZIP_NAME) ./ \
+		-x "*__pycache__*" \
+		   "build/*" \
+		   "chore-repo-improvements.md" \
+		   "docs/*" \
+		   "imgs/*" \
+		   ".vscode/*" \
+		   ".git/*"
+
+	@echo "Done: $(ZIP_NAME) created successfully"
+
+# ===========================================================================================
+# CODE FORMATTING
+# ===========================================================================================
+
+format:
+	@echo "Running clang-format across project..."
+	@find src include tools tests -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+	@echo "Formatting complete."
+
+# ===========================================================================================
 # DEFAULT
 # ===========================================================================================
 all: canny_rv
@@ -298,6 +371,7 @@ clean_all: clean clean_imgs clean_docs
         run_target run_host run_all                         \
         bench_all sweep autovec count_vec_instructions      \
         verify_rvv                                          \
-        test_img_io test_gaussian test_sobel test_mag_dir       \
-        test_sobel_rv test_rvv_equiv test_edge_refinement      \
-        test clean clean_imgs clean_docs clean_all
+        test_img_io test_gaussian test_sobel test_mag_dir   \
+        test_sobel_rv test_rvv_equiv test_edge_refinement   \
+        test clean clean_imgs clean_docs clean_all		 	\
+		format package help

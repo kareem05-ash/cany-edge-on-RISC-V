@@ -1,7 +1,7 @@
 #include "gaussian.h"
 #include <cstdint>
-#include <cstdlib>   // aligned_alloc, free
-#include <cstring>   // memset
+#include <cstdlib> // aligned_alloc, free
+#include <cstring> // memset
 
 // ─── Kernel pointer table for convolve2d ─────────────────────────────────────
 //
@@ -9,10 +9,8 @@
 // independent of any specific kernel layout. We build the pointer table once here
 // as a file-static constant — visible only inside this translation unit.
 
-static const int16_t* GAUSS_KERNEL_ROWS[5] = {
-    GAUSS_KERNEL[0], GAUSS_KERNEL[1], GAUSS_KERNEL[2],
-    GAUSS_KERNEL[3], GAUSS_KERNEL[4]
-};
+static const int16_t *GAUSS_KERNEL_ROWS[5] = {GAUSS_KERNEL[0], GAUSS_KERNEL[1], GAUSS_KERNEL[2],
+                                              GAUSS_KERNEL[3], GAUSS_KERNEL[4]};
 
 // ─── gaussian_blur ────────────────────────────────────────────────────────────
 //
@@ -26,14 +24,10 @@ static const int16_t* GAUSS_KERNEL_ROWS[5] = {
 //   AccumT = int32_t  — accumulator must hold up to 255*41*25 ~ 261 375
 //   CoeffT = int16_t  — kernel coefficients fit in 16 bits (max value 41)
 
-void gaussian_blur(const Image& src, Image& dst) {
-    convolve2d<uint8_t, int32_t, int16_t>(
-        src.data, dst.data,
-        src.width, src.height,
-        GAUSS_KERNEL_ROWS,
-        GAUSS_RADIUS,
-        static_cast<int32_t>(GAUSS_SUM)
-    );
+void gaussian_blur(const Image &src, Image &dst) {
+    convolve2d<uint8_t, int32_t, int16_t>(src.data, dst.data, src.width, src.height,
+                                          GAUSS_KERNEL_ROWS, GAUSS_RADIUS,
+                                          static_cast<int32_t>(GAUSS_SUM));
 }
 
 // ─── gaussian_blur_separable ──────────────────────────────────────────────────
@@ -57,10 +51,10 @@ void gaussian_blur(const Image& src, Image& dst) {
 // slightly different from the 2-D kernel's 273. This means separable output
 // may differ from 2-D output by +-1 LSB, which is acceptable (verified in tests).
 
-void gaussian_blur_separable(const Image& src, Image& dst) {
+void gaussian_blur_separable(const Image &src, Image &dst) {
     const int W = src.width;
     const int H = src.height;
-    const int R = GAUSS_RADIUS;  // = 2
+    const int R = GAUSS_RADIUS; // = 2
 
     // Intermediate buffer: int16_t to hold the result of the horizontal pass
     // before the second division. int16_t is sufficient: max value after
@@ -71,8 +65,8 @@ void gaussian_blur_separable(const Image& src, Image& dst) {
     // aligned_alloc requires size to be a multiple of the alignment (64 bytes).
     // We round up to the next multiple of 64 to satisfy this requirement.
     size_t bytes = static_cast<size_t>(W * H) * sizeof(int16_t);
-    bytes = (bytes + 63) & ~static_cast<size_t>(63);  // round up to 64-byte boundary
-    int16_t* tmp = static_cast<int16_t*>(aligned_alloc(64, bytes));
+    bytes = (bytes + 63) & ~static_cast<size_t>(63); // round up to 64-byte boundary
+    int16_t *tmp = static_cast<int16_t *>(aligned_alloc(64, bytes));
 
     // ── Pass 1: horizontal 1x5 convolution ───────────────────────────────────
     // For each pixel (y, x), convolve with GAUSS_KERNEL_1D along x.
@@ -85,8 +79,7 @@ void gaussian_blur_separable(const Image& src, Image& dst) {
                 uint8_t pixel = 0;
                 if (sx >= 0 && sx < W)
                     pixel = src.data[y * W + sx];
-                acc += static_cast<int32_t>(pixel)
-                     * static_cast<int32_t>(GAUSS_KERNEL_1D[kx + R]);
+                acc += static_cast<int32_t>(pixel) * static_cast<int32_t>(GAUSS_KERNEL_1D[kx + R]);
             }
             // Divide by 17 to normalise the horizontal pass.
             // Result fits in int16_t: max = (255 * 17) / 17 = 255.
@@ -105,13 +98,14 @@ void gaussian_blur_separable(const Image& src, Image& dst) {
                 int16_t pixel = 0;
                 if (sy >= 0 && sy < H)
                     pixel = tmp[sy * W + x];
-                acc += static_cast<int32_t>(pixel)
-                     * static_cast<int32_t>(GAUSS_KERNEL_1D[ky + R]);
+                acc += static_cast<int32_t>(pixel) * static_cast<int32_t>(GAUSS_KERNEL_1D[ky + R]);
             }
             // Divide by 17 again to normalise the vertical pass.
             int32_t result = acc / GAUSS_SUM_1D;
-            if (result < 0)   result = 0;
-            if (result > 255) result = 255;
+            if (result < 0)
+                result = 0;
+            if (result > 255)
+                result = 255;
             dst.data[y * W + x] = static_cast<uint8_t>(result);
         }
     }
@@ -141,18 +135,18 @@ void gaussian_blur_separable(const Image& src, Image& dst) {
 // Output: identical to gaussian_blur on all interior pixels.
 //         Border pixels may differ by +-1 LSB due to rounding.
 
-void gaussian_blur_padded(const Image& src, Image& dst) {
-    const int W  = src.width;
-    const int H  = src.height;
-    const int R  = GAUSS_RADIUS;   // = 2
-    const int PW = W + 2 * R;      // padded width
-    const int PH = H + 2 * R;      // padded height
+void gaussian_blur_padded(const Image &src, Image &dst) {
+    const int W = src.width;
+    const int H = src.height;
+    const int R = GAUSS_RADIUS; // = 2
+    const int PW = W + 2 * R;   // padded width
+    const int PH = H + 2 * R;   // padded height
 
     // Step 1: allocate padded buffer and zero-fill (zero-padding)
     size_t pad_bytes = static_cast<size_t>(PW * PH);
     pad_bytes = (pad_bytes + 63) & ~static_cast<size_t>(63); // align to 64 bytes
-    uint8_t* padded = static_cast<uint8_t*>(aligned_alloc(64, pad_bytes));
-    memset(padded, 0, pad_bytes);  // zero-pad border (faster than a manual loop)
+    uint8_t *padded = static_cast<uint8_t *>(aligned_alloc(64, pad_bytes));
+    memset(padded, 0, pad_bytes); // zero-pad border (faster than a manual loop)
 
     // Step 2: copy original image into center of padded buffer
     // Row y of src goes to row (y+R) of padded, starting at column R
@@ -169,12 +163,14 @@ void gaussian_blur_padded(const Image& src, Image& dst) {
 
             for (int ky = 0; ky < 5; ++ky)
                 for (int kx = 0; kx < 5; ++kx)
-                    acc += static_cast<int32_t>(padded[(y + ky) * PW + (x + kx)])
-                         * static_cast<int32_t>(GAUSS_KERNEL[ky][kx]);
+                    acc += static_cast<int32_t>(padded[(y + ky) * PW + (x + kx)]) *
+                           static_cast<int32_t>(GAUSS_KERNEL[ky][kx]);
 
             int32_t result = acc / GAUSS_SUM;
-            if (result < 0)   result = 0;
-            if (result > 255) result = 255;
+            if (result < 0)
+                result = 0;
+            if (result > 255)
+                result = 255;
             dst.data[y * W + x] = static_cast<uint8_t>(result);
         }
     }

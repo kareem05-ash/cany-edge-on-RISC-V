@@ -1,29 +1,29 @@
 #include "gaussian.h"
-#include <gtest/gtest.h>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <cmath>
+#include <gtest/gtest.h>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-static void fill(Image& img, uint8_t value) {
-    std::memset(img.data, value, img.size());
-}
+static void fill(Image &img, uint8_t value) { std::memset(img.data, value, img.size()); }
 
-static bool all_close(const Image& img, int expected, int tolerance = 1) {
+static bool all_close(const Image &img, int expected, int tolerance = 1) {
     for (int i = 0; i < img.size(); ++i) {
         int diff = static_cast<int>(img.data[i]) - expected;
-        if (diff < -tolerance || diff > tolerance) return false;
+        if (diff < -tolerance || diff > tolerance)
+            return false;
     }
     return true;
 }
 
-static bool interior_close(const Image& img, int expected, int tolerance = 1) {
+static bool interior_close(const Image &img, int expected, int tolerance = 1) {
     const int R = GAUSS_RADIUS;
     for (int y = R; y < img.height - R; ++y)
         for (int x = R; x < img.width - R; ++x) {
             int diff = static_cast<int>(img(y, x)) - expected;
-            if (diff < -tolerance || diff > tolerance) return false;
+            if (diff < -tolerance || diff > tolerance)
+                return false;
         }
     return true;
 }
@@ -33,7 +33,8 @@ static bool interior_close(const Image& img, int expected, int tolerance = 1) {
 TEST(GaussianBlur, UniformImageIsUniform) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 128); fill(dst, 0);
+    fill(src, 128);
+    fill(dst, 0);
     gaussian_blur(src, dst);
     EXPECT_TRUE(interior_close(dst, 128, 1));
 }
@@ -41,7 +42,8 @@ TEST(GaussianBlur, UniformImageIsUniform) {
 TEST(GaussianBlur, AllBlackStaysBlack) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 0); fill(dst, 99);
+    fill(src, 0);
+    fill(dst, 99);
     gaussian_blur(src, dst);
     EXPECT_TRUE(all_close(dst, 0, 0));
 }
@@ -49,7 +51,8 @@ TEST(GaussianBlur, AllBlackStaysBlack) {
 TEST(GaussianBlur, AllWhiteInteriorStaysWhite) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 255); fill(dst, 0);
+    fill(src, 255);
+    fill(dst, 0);
     gaussian_blur(src, dst);
     const int R = GAUSS_RADIUS;
     for (int y = R; y < H - R; ++y)
@@ -61,7 +64,8 @@ TEST(GaussianBlur, ImpulseSpreadsSym) {
     const int W = 32, H = 32;
     const int cy = H / 2, cx = W / 2;
     Image src(W, H), dst(W, H);
-    fill(src, 0); fill(dst, 0);
+    fill(src, 0);
+    fill(dst, 0);
     src(cy, cx) = 255;
     gaussian_blur(src, dst);
     int centre_val = dst(cy, cx);
@@ -73,21 +77,21 @@ TEST(GaussianBlur, ImpulseSpreadsSym) {
         EXPECT_NEAR(dst(cy, cx - d), dst(cy, cx + d), 1);
     for (int d = 1; d <= GAUSS_RADIUS; ++d)
         EXPECT_NEAR(dst(cy - d, cx), dst(cy + d, cx), 1);
-for (int y = 0; y < H; ++y) {
-    for (int x = 0; x < W; ++x) {
-        if (std::abs(y - cy) > GAUSS_RADIUS ||
-            std::abs(x - cx) > GAUSS_RADIUS) {
-            EXPECT_EQ(dst(y, x), 0);
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            if (std::abs(y - cy) > GAUSS_RADIUS || std::abs(x - cx) > GAUSS_RADIUS) {
+                EXPECT_EQ(dst(y, x), 0);
+            }
         }
     }
-}
 }
 
 TEST(GaussianBlur, ImpulseCentreValue) {
     const int W = 32, H = 32;
     const int cy = H / 2, cx = W / 2;
     Image src(W, H), dst(W, H);
-    fill(src, 0); fill(dst, 0);
+    fill(src, 0);
+    fill(dst, 0);
     src(cy, cx) = 255;
     gaussian_blur(src, dst);
     EXPECT_NEAR(dst(cy, cx), 38, 1);
@@ -96,7 +100,8 @@ TEST(GaussianBlur, ImpulseCentreValue) {
 TEST(GaussianBlur, NonPowerOfTwoSize) {
     const int W = 100, H = 75;
     Image src(W, H), dst(W, H);
-    fill(src, 200); fill(dst, 0);
+    fill(src, 200);
+    fill(dst, 0);
     gaussian_blur(src, dst);
     EXPECT_TRUE(interior_close(dst, 200, 1));
 }
@@ -111,14 +116,18 @@ TEST(GaussianBlur, OutputDiffersFromInput) {
     gaussian_blur(src, dst);
     bool any_different = false;
     for (int i = 0; i < src.size(); ++i)
-        if (dst.data[i] != src.data[i]) { any_different = true; break; }
+        if (dst.data[i] != src.data[i]) {
+            any_different = true;
+            break;
+        }
     EXPECT_TRUE(any_different);
 }
 
 TEST(GaussianBlur, UniformImageHasZeroGradient) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 100); fill(dst, 0);
+    fill(src, 100);
+    fill(dst, 0);
     gaussian_blur(src, dst);
     const int R = GAUSS_RADIUS;
     uint8_t ref = dst(R, R);
@@ -132,7 +141,8 @@ TEST(GaussianBlur, UniformImageHasZeroGradient) {
 TEST(GaussianSeparable, UniformImageIsUniform) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 128); fill(dst, 0);
+    fill(src, 128);
+    fill(dst, 0);
     gaussian_blur_separable(src, dst);
     EXPECT_TRUE(interior_close(dst, 128, 1));
 }
@@ -140,7 +150,8 @@ TEST(GaussianSeparable, UniformImageIsUniform) {
 TEST(GaussianSeparable, AllBlackStaysBlack) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 0); fill(dst, 99);
+    fill(src, 0);
+    fill(dst, 99);
     gaussian_blur_separable(src, dst);
     EXPECT_TRUE(all_close(dst, 0, 0));
 }
@@ -148,7 +159,8 @@ TEST(GaussianSeparable, AllBlackStaysBlack) {
 TEST(GaussianSeparable, AllWhiteInteriorStaysWhite) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 255); fill(dst, 0);
+    fill(src, 255);
+    fill(dst, 0);
     gaussian_blur_separable(src, dst);
     const int R = GAUSS_RADIUS;
     for (int y = R; y < H - R; ++y)
@@ -159,7 +171,8 @@ TEST(GaussianSeparable, AllWhiteInteriorStaysWhite) {
 TEST(GaussianSeparable, NonPowerOfTwoSize) {
     const int W = 100, H = 75;
     Image src(W, H), dst(W, H);
-    fill(src, 200); fill(dst, 0);
+    fill(src, 200);
+    fill(dst, 0);
     gaussian_blur_separable(src, dst);
     EXPECT_TRUE(interior_close(dst, 200, 1));
 }
@@ -178,7 +191,7 @@ TEST(GaussianEquivalence, InteriorMatchesTwoD) {
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x)
             src(y, x) = static_cast<uint8_t>((x * 3 + y * 7) % 256);
-    fill(dst2d,  0);
+    fill(dst2d, 0);
     fill(dstSep, 0);
 
     gaussian_blur(src, dst2d);
@@ -187,8 +200,7 @@ TEST(GaussianEquivalence, InteriorMatchesTwoD) {
     const int R = GAUSS_RADIUS;
     for (int y = R; y < H - R; ++y)
         for (int x = R; x < W - R; ++x)
-            EXPECT_NEAR(static_cast<int>(dstSep(y, x)),
-                        static_cast<int>(dst2d(y, x)), 3)
+            EXPECT_NEAR(static_cast<int>(dstSep(y, x)), static_cast<int>(dst2d(y, x)), 3)
                 << "Mismatch at (" << y << "," << x << ")";
 }
 
@@ -198,7 +210,7 @@ TEST(GaussianEquivalence, NonPowerOfTwoInteriorMatches) {
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x)
             src(y, x) = static_cast<uint8_t>((x * 5 + y * 11) % 256);
-    fill(dst2d,  0);
+    fill(dst2d, 0);
     fill(dstSep, 0);
 
     gaussian_blur(src, dst2d);
@@ -207,8 +219,7 @@ TEST(GaussianEquivalence, NonPowerOfTwoInteriorMatches) {
     const int R = GAUSS_RADIUS;
     for (int y = R; y < H - R; ++y)
         for (int x = R; x < W - R; ++x)
-            EXPECT_NEAR(static_cast<int>(dstSep(y, x)),
-                        static_cast<int>(dst2d(y, x)), 3)
+            EXPECT_NEAR(static_cast<int>(dstSep(y, x)), static_cast<int>(dst2d(y, x)), 3)
                 << "Mismatch at (" << y << "," << x << ")";
 }
 
@@ -221,7 +232,8 @@ TEST(GaussianEquivalence, NonPowerOfTwoInteriorMatches) {
 TEST(GaussianPadded, UniformImageIsUniform) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 128); fill(dst, 0);
+    fill(src, 128);
+    fill(dst, 0);
     gaussian_blur_padded(src, dst);
     EXPECT_TRUE(interior_close(dst, 128, 1));
 }
@@ -229,7 +241,8 @@ TEST(GaussianPadded, UniformImageIsUniform) {
 TEST(GaussianPadded, AllBlackStaysBlack) {
     const int W = 64, H = 64;
     Image src(W, H), dst(W, H);
-    fill(src, 0); fill(dst, 99);
+    fill(src, 0);
+    fill(dst, 99);
     gaussian_blur_padded(src, dst);
     EXPECT_TRUE(all_close(dst, 0, 0));
 }
@@ -237,7 +250,8 @@ TEST(GaussianPadded, AllBlackStaysBlack) {
 TEST(GaussianPadded, NonPowerOfTwoSize) {
     const int W = 100, H = 75;
     Image src(W, H), dst(W, H);
-    fill(src, 200); fill(dst, 0);
+    fill(src, 200);
+    fill(dst, 0);
     gaussian_blur_padded(src, dst);
     EXPECT_TRUE(interior_close(dst, 200, 1));
 }
@@ -261,24 +275,20 @@ TEST(Convolve2DTemplate, DirectInstantiationUniformImage) {
     const int W = 8, H = 8;
 
     // Build a 3x3 box-average kernel (all ones, divide by 9)
-    static const int16_t row0[3] = { 1, 1, 1 };
-    static const int16_t row1[3] = { 1, 1, 1 };
-    static const int16_t row2[3] = { 1, 1, 1 };
-    static const int16_t* kernel[3] = { row0, row1, row2 };
+    static const int16_t row0[3] = {1, 1, 1};
+    static const int16_t row1[3] = {1, 1, 1};
+    static const int16_t row2[3] = {1, 1, 1};
+    static const int16_t *kernel[3] = {row0, row1, row2};
 
     uint8_t src_buf[W * H];
     uint8_t dst_buf[W * H];
-    std::memset(src_buf, 90, W * H);   // all pixels = 90
-    std::memset(dst_buf,  0, W * H);
+    std::memset(src_buf, 90, W * H); // all pixels = 90
+    std::memset(dst_buf, 0, W * H);
 
     // Call convolve2d directly with explicit template arguments
-    convolve2d<uint8_t, int32_t, int16_t>(
-        src_buf, dst_buf,
-        W, H,
-        kernel,
-        /*radius=*/1,
-        /*divisor=*/static_cast<int32_t>(9)
-    );
+    convolve2d<uint8_t, int32_t, int16_t>(src_buf, dst_buf, W, H, kernel,
+                                          /*radius=*/1,
+                                          /*divisor=*/static_cast<int32_t>(9));
 
     // Interior pixels must be exactly 90 (no rounding: 90*9/9 = 90)
     for (int y = 1; y < H - 1; ++y)
@@ -297,22 +307,18 @@ TEST(Convolve2DTemplate, DirectInstantiationKnownPixelValue) {
     // (integer division truncates: floor(255/9) = 28).
     const int W = 5, H = 5;
 
-    static const int16_t row[3] = { 1, 1, 1 };
-    static const int16_t* kernel[3] = { row, row, row };
+    static const int16_t row[3] = {1, 1, 1};
+    static const int16_t *kernel[3] = {row, row, row};
 
     uint8_t src_buf[W * H];
     uint8_t dst_buf[W * H];
     std::memset(src_buf, 0, W * H);
-    src_buf[2 * W + 2] = 255;          // centre pixel only
+    src_buf[2 * W + 2] = 255; // centre pixel only
     std::memset(dst_buf, 0, W * H);
 
-    convolve2d<uint8_t, int32_t, int16_t>(
-        src_buf, dst_buf,
-        W, H,
-        kernel,
-        /*radius=*/1,
-        /*divisor=*/static_cast<int32_t>(9)
-    );
+    convolve2d<uint8_t, int32_t, int16_t>(src_buf, dst_buf, W, H, kernel,
+                                          /*radius=*/1,
+                                          /*divisor=*/static_cast<int32_t>(9));
 
     // Centre of impulse response: 255 / 9 = 28 (truncated integer division)
     EXPECT_EQ(static_cast<int>(dst_buf[2 * W + 2]), 28);

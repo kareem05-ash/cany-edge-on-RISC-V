@@ -96,7 +96,8 @@ install_apt() {
         libpulse0 libgtk-3-0t64 libasound2t64 libdbus-1-3 \
         libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
         libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 libxcb-xfixes0 \
-        libqt5gui5t64
+        libqt5gui5t64 \
+        clang-format
 }
 
 install_pacman() {

@@ -3,8 +3,8 @@
 // This is the baseline for the future QEMU-side RVV equivalence test.
 
 #include "sobel.h"
-#include <gtest/gtest.h>
 #include <cstring>
+#include <gtest/gtest.h>
 
 TEST(SobelEquivalence, UniformImageZeroGradient_100x75) {
     // Non-power-of-two size forces the strip-mining tail case later (Phase 6)
@@ -12,8 +12,8 @@ TEST(SobelEquivalence, UniformImageZeroGradient_100x75) {
     Image src(W, H);
     std::memset(src.data, 128, W * H);
 
-    int16_t* Gx = new int16_t[W * H]();
-    int16_t* Gy = new int16_t[W * H]();
+    int16_t *Gx = new int16_t[W * H]();
+    int16_t *Gy = new int16_t[W * H]();
 
     sobel(src, Gx, Gy);
 
@@ -34,8 +34,8 @@ TEST(SobelEquivalence, VerticalEdge_100x75) {
         for (int x = 0; x < W; ++x)
             src(y, x) = (x < W / 2) ? 0 : 255;
 
-    int16_t* Gx = new int16_t[W * H]();
-    int16_t* Gy = new int16_t[W * H]();
+    int16_t *Gx = new int16_t[W * H]();
+    int16_t *Gy = new int16_t[W * H]();
     sobel(src, Gx, Gy);
 
     int cx = W / 2;

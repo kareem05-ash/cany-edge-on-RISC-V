@@ -3,8 +3,8 @@
 //   Non-Maximum Suppression, Double Thresholding, Hysteresis
 
 #include "edge_refinement.h"
-#include <gtest/gtest.h>
 #include <cstring>
+#include <gtest/gtest.h>
 
 // ── NMS tests ────────────────────────────────────────────────────────────────
 
@@ -12,14 +12,18 @@ TEST(NMS, BorderPixelsAreAlwaysSuppressed) {
     const int W = 8, H = 8;
     uint8_t mag[W * H], dir[W * H], out[W * H];
     std::memset(mag, 200, sizeof(mag));
-    std::memset(dir, 0,   sizeof(dir));
+    std::memset(dir, 0, sizeof(dir));
 
     nms(mag, dir, out, W, H);
 
-    for (int x = 0; x < W; ++x) EXPECT_EQ(out[0 * W + x],       0) << "top row x=" << x;
-    for (int x = 0; x < W; ++x) EXPECT_EQ(out[(H-1) * W + x],   0) << "bot row x=" << x;
-    for (int y = 0; y < H; ++y) EXPECT_EQ(out[y * W + 0],        0) << "left col y=" << y;
-    for (int y = 0; y < H; ++y) EXPECT_EQ(out[y * W + (W-1)],    0) << "right col y=" << y;
+    for (int x = 0; x < W; ++x)
+        EXPECT_EQ(out[0 * W + x], 0) << "top row x=" << x;
+    for (int x = 0; x < W; ++x)
+        EXPECT_EQ(out[(H - 1) * W + x], 0) << "bot row x=" << x;
+    for (int y = 0; y < H; ++y)
+        EXPECT_EQ(out[y * W + 0], 0) << "left col y=" << y;
+    for (int y = 0; y < H; ++y)
+        EXPECT_EQ(out[y * W + (W - 1)], 0) << "right col y=" << y;
 }
 
 TEST(NMS, LocalMaximumIsPreserved) {
@@ -29,9 +33,9 @@ TEST(NMS, LocalMaximumIsPreserved) {
     uint8_t out[W * H] = {};
 
     // Centre is strongest; direction 0 → compare left/right
-    mag[2 * W + 2] = 200;  // centre
-    mag[2 * W + 1] = 100;  // left  — weaker
-    mag[2 * W + 3] = 100;  // right — weaker
+    mag[2 * W + 2] = 200; // centre
+    mag[2 * W + 1] = 100; // left  — weaker
+    mag[2 * W + 3] = 100; // right — weaker
     dir[2 * W + 2] = 0;
 
     nms(mag, dir, out, W, H);
@@ -46,8 +50,8 @@ TEST(NMS, WeakerNeighborIsSuppressed) {
     uint8_t out[W * H] = {};
 
     // Centre is weaker than right neighbor → should be suppressed
-    mag[2 * W + 2] = 100;  // centre  — weaker
-    mag[2 * W + 3] = 200;  // right   — stronger
+    mag[2 * W + 2] = 100; // centre  — weaker
+    mag[2 * W + 3] = 200; // right   — stronger
     dir[2 * W + 2] = 0;
 
     nms(mag, dir, out, W, H);
@@ -59,7 +63,7 @@ TEST(NMS, WeakerNeighborIsSuppressed) {
 
 TEST(DoubleThreshold, StrongEdgesBecome255) {
     const int W = 4, H = 1;
-    uint8_t in[4]  = {200, 200, 200, 200};
+    uint8_t in[4] = {200, 200, 200, 200};
     uint8_t out[4] = {};
     double_threshold(in, out, W, H, 50, 100);
     for (int i = 0; i < 4; ++i)
@@ -68,7 +72,7 @@ TEST(DoubleThreshold, StrongEdgesBecome255) {
 
 TEST(DoubleThreshold, WeakEdgesBecome128) {
     const int W = 4, H = 1;
-    uint8_t in[4]  = {75, 75, 75, 75};
+    uint8_t in[4] = {75, 75, 75, 75};
     uint8_t out[4] = {};
     double_threshold(in, out, W, H, 50, 100);
     for (int i = 0; i < 4; ++i)
@@ -77,7 +81,7 @@ TEST(DoubleThreshold, WeakEdgesBecome128) {
 
 TEST(DoubleThreshold, NoiseBecomesZero) {
     const int W = 4, H = 1;
-    uint8_t in[4]  = {10, 20, 30, 40};
+    uint8_t in[4] = {10, 20, 30, 40};
     uint8_t out[4] = {};
     double_threshold(in, out, W, H, 50, 100);
     for (int i = 0; i < 4; ++i)
@@ -88,7 +92,7 @@ TEST(DoubleThreshold, NoiseBecomesZero) {
 
 TEST(Hysteresis, WeakPixelConnectedToStrongBecomesStrong) {
     const int W = 5, H = 1;
-    uint8_t in[5]  = {255, 128, 0, 0, 0};
+    uint8_t in[5] = {255, 128, 0, 0, 0};
     uint8_t out[5] = {};
     hysteresis(in, out, W, H);
     EXPECT_EQ(out[0], 255) << "Strong pixel must stay 255";
@@ -97,7 +101,7 @@ TEST(Hysteresis, WeakPixelConnectedToStrongBecomesStrong) {
 
 TEST(Hysteresis, IsolatedWeakPixelIsSuppressed) {
     const int W = 5, H = 1;
-    uint8_t in[5]  = {0, 0, 128, 0, 0};
+    uint8_t in[5] = {0, 0, 128, 0, 0};
     uint8_t out[5] = {};
     hysteresis(in, out, W, H);
     EXPECT_EQ(out[2], 0) << "Isolated weak pixel should be suppressed to 0";
@@ -105,7 +109,7 @@ TEST(Hysteresis, IsolatedWeakPixelIsSuppressed) {
 
 TEST(Hysteresis, AllZeroInputStaysZero) {
     const int W = 8, H = 8;
-    uint8_t in[W * H]  = {};
+    uint8_t in[W * H] = {};
     uint8_t out[W * H] = {};
     hysteresis(in, out, W, H);
     for (int i = 0; i < W * H; ++i)

@@ -16,13 +16,13 @@
 //      make run_host    W=512 H=512 I=0    # host:   timing + file I/O
 // ====================================================================================================
 
-#include "img_io.h"
-#include "gaussian.h"
-#include "sobel.h"
-#include "mag_dir.h"
 #include "edge_refinement.h"
-#include "tools.h"
+#include "gaussian.h"
+#include "img_io.h"
+#include "mag_dir.h"
+#include "sobel.h"
 #include "timer.h"
+#include "tools.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -30,48 +30,54 @@
 #include <cstring>
 
 // ── Image index table ─────────────────────────────────────────────────────────
-static const char* IMG_NAMES[] = {
-    "white_square",     // 0
-    "circle",           // 1
-    "vertical_edge",    // 2
-    "horizontal_edge",  // 3
-    "checkerboard",     // 4
-    "impulse",          // 5
-    "gradient_ramp"     // 6
+static const char *IMG_NAMES[] = {
+    "white_square",    // 0
+    "circle",          // 1
+    "vertical_edge",   // 2
+    "horizontal_edge", // 3
+    "checkerboard",    // 4
+    "impulse",         // 5
+    "gradient_ramp"    // 6
 };
 static const int N_IMGS = 7;
 
 // ── Generate image by index ───────────────────────────────────────────────────
 static Image gen_by_index(int I, int W, int H) {
     switch (I) {
-        case 0: return gen_white_square   (W, H);
-        case 1: return gen_circle         (W, H);
-        case 2: return gen_vertical_edge  (W, H);
-        case 3: return gen_horizontal_edge(W, H);
-        case 4: return gen_checkboard     (W, H, 32);
-        case 5: return gen_impulse        (W, H);
-        case 6: return gen_gradient_ramp  (W, H);
-        default:
-            fprintf(stderr, "Error: invalid image index %d\n", I);
-            exit(1);
+    case 0:
+        return gen_white_square(W, H);
+    case 1:
+        return gen_circle(W, H);
+    case 2:
+        return gen_vertical_edge(W, H);
+    case 3:
+        return gen_horizontal_edge(W, H);
+    case 4:
+        return gen_checkboard(W, H, 32);
+    case 5:
+        return gen_impulse(W, H);
+    case 6:
+        return gen_gradient_ramp(W, H);
+    default:
+        fprintf(stderr, "Error: invalid image index %d\n", I);
+        exit(1);
     }
 }
 
 // ====================================================================================================
 // main()
 // ====================================================================================================
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
     // ── Arguments ─────────────────────────────────────────────────────────
     if (argc != 4) {
         fprintf(stderr,
-            "Usage: %s <W> <H> <I>\n"
-            "  W, H : image dimensions in pixels\n"
-            "  I    : image index\n"
-            "         0=white_square  1=circle        2=vertical_edge\n"
-            "         3=hor_edge      4=checkerboard  5=impulse\n"
-            "         6=gradient_ramp\n",
-            argv[0]);
+                "Usage: %s <W> <H> <I>\n"
+                "  W, H : image dimensions in pixels\n"
+                "  I    : image index\n"
+                "         0=white_square  1=circle        2=vertical_edge\n"
+                "         3=hor_edge      4=checkerboard  5=impulse\n"
+                "         6=gradient_ramp\n",
+                argv[0]);
         return 1;
     }
 
@@ -88,11 +94,12 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const char* img_name  = IMG_NAMES[I];
-    const int   ITERATIONS = 100;
+    const char *img_name = IMG_NAMES[I];
+    const int ITERATIONS = 100;
 
     // ── Banner ─────────────────────────────────────────────────────────────
-    printf("\n====================================================================================================\n");
+    printf("\n====================================================================================="
+           "===============\n");
     printf(" << Canny Edge Pipeline >>\n");
 #ifdef __riscv
     printf(" >> Mode       : RISC-V Target (no file I/O)\n");
@@ -102,7 +109,8 @@ int main(int argc, char* argv[])
     printf(" >> Image      : %s [I=%d]\n", img_name, I);
     printf(" >> W x H      : %d x %d\n", W, H);
     printf(" >> Iterations : %d\n", ITERATIONS);
-    printf("====================================================================================================\n\n");
+    printf("======================================================================================="
+           "=============\n\n");
 
     // ── Generate source image in memory ────────────────────────────────────
     // Same on both host and target — no disk I/O needed for input
@@ -111,10 +119,10 @@ int main(int argc, char* argv[])
     printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
 
     // ── Pipeline outputs ───────────────────────────────────────────────────
-    TimingResult    results_2d [7];
-    TimingResult    results_sep[7];
-    TimingResult    results_pad[7];
-    PipelineOutputs out_2d  = {nullptr, nullptr, nullptr};
+    TimingResult results_2d[7];
+    TimingResult results_sep[7];
+    TimingResult results_pad[7];
+    PipelineOutputs out_2d = {nullptr, nullptr, nullptr};
     PipelineOutputs out_sep = {nullptr, nullptr, nullptr};
     PipelineOutputs out_pad = {nullptr, nullptr, nullptr};
 
@@ -125,7 +133,8 @@ int main(int argc, char* argv[])
     report_timing_table(results_2d, 7, "docs/timing_2d.txt");
     printf("\n");
     report_hotspot(results_2d, 7);
-    printf("\n----------------------------------------------------------------------------------------------------\n");
+    printf("\n-------------------------------------------------------------------------------------"
+           "---------------\n");
 
     // ── [Method 2] Separable Gaussian ──────────────────────────────────────
     printf("\n[Step 3] Pipeline — Separable Gaussian kernel (%d iterations) ...\n", ITERATIONS);
@@ -134,7 +143,8 @@ int main(int argc, char* argv[])
     report_timing_table(results_sep, 7, "docs/timing_separable.txt");
     printf("\n");
     report_hotspot(results_sep, 7);
-    printf("\n----------------------------------------------------------------------------------------------------\n");
+    printf("\n-------------------------------------------------------------------------------------"
+           "---------------\n");
 
     // ── [Method 3] Padded Gaussian (vectorization check) ───────────────────
     printf("\n[Step 4] Pipeline — Padded Gaussian kernel (%d iterations) ...\n", ITERATIONS);
@@ -143,12 +153,13 @@ int main(int argc, char* argv[])
     report_timing_table(results_pad, 7, "docs/timing_padded.txt");
     printf("\n");
     report_hotspot(results_pad, 7);
-    printf("\n----------------------------------------------------------------------------------------------------\n");
+    printf("\n-------------------------------------------------------------------------------------"
+           "---------------\n");
 
     // ── Save outputs (host only) ────────────────────────────────────────────
 #ifndef __riscv
     printf("\n[Step 5] Saving output images ...\n");
-    save_outputs(img_name, W, H, "",     src, *out_2d.blurred,  out_2d.mag,  out_2d.out_refined);
+    save_outputs(img_name, W, H, "", src, *out_2d.blurred, out_2d.mag, out_2d.out_refined);
     save_outputs(img_name, W, H, "_sep", src, *out_sep.blurred, out_sep.mag, out_sep.out_refined);
     save_outputs(img_name, W, H, "_pad", src, *out_pad.blurred, out_pad.mag, out_pad.out_refined);
 #endif
@@ -158,9 +169,11 @@ int main(int argc, char* argv[])
     free_pipeline_outputs(out_sep);
     free_pipeline_outputs(out_pad);
 
-    printf("\n====================================================================================================\n");
+    printf("\n====================================================================================="
+           "===============\n");
     printf(" << Pipeline Complete >>\n");
-    printf("====================================================================================================\n\n");
+    printf("======================================================================================="
+           "=============\n\n");
 
     return 0;
 }

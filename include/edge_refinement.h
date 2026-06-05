@@ -12,14 +12,10 @@
 //  hysteresis()        -> resolves WEAK pixels via connectivity to STRONG ones
 // ================================================================================
 
-void nms(const uint8_t* mag, const uint8_t* dir,
-            uint8_t* out, int W, int H);
+void nms(const uint8_t *mag, const uint8_t *dir, uint8_t *out, int W, int H);
 
-void double_threshold(const uint8_t* in, uint8_t* out, 
-                        int W, int H,
-                        uint8_t t_low, uint8_t t_high);
+void double_threshold(const uint8_t *in, uint8_t *out, int W, int H, uint8_t t_low, uint8_t t_high);
 
-void hysteresis(const uint8_t* in, uint8_t* out,
-                    int W, int H);
+void hysteresis(const uint8_t *in, uint8_t *out, int W, int H);
 
-#endif  // EDGE_REFINEMENT_H
+#endif // EDGE_REFINEMENT_H

@@ -23,13 +23,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include "gaussian.h"
-#include "sobel.h"
 #include "mag_dir.h"
+#include "sobel.h"
 #include <cassert>
-#include <cstdio>
-#include <cstring>
-#include <cstdlib>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 static const int W = 100;
 static const int H = 75;
@@ -37,15 +37,13 @@ static const int N = W * H;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-static void fill_gradient(Image& img) {
+static void fill_gradient(Image &img) {
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x)
             img(y, x) = static_cast<uint8_t>((x * 3 + y * 7) % 256);
 }
 
-static int absdiff(uint8_t a, uint8_t b) {
-    return static_cast<int>(a) - static_cast<int>(b);
-}
+static int absdiff(uint8_t a, uint8_t b) { return static_cast<int>(a) - static_cast<int>(b); }
 
 // ── Test 1: Gaussian 2D vs padded (interior pixels match within 1 LSB) ───────
 
@@ -53,17 +51,17 @@ static void test_gaussian_equiv() {
     Image src(W, H);
     fill_gradient(src);
 
-    Image dst_2d (W, H);
+    Image dst_2d(W, H);
     Image dst_pad(W, H);
 
-    gaussian_blur       (src, dst_2d);
+    gaussian_blur(src, dst_2d);
     gaussian_blur_padded(src, dst_pad);
 
     const int R = GAUSS_RADIUS;
     int mismatches = 0;
     for (int y = R; y < H - R; ++y)
         for (int x = R; x < W - R; ++x)
-            if (std::abs(absdiff(dst_2d(y,x), dst_pad(y,x))) > 1)
+            if (std::abs(absdiff(dst_2d(y, x), dst_pad(y, x))) > 1)
                 ++mismatches;
 
     assert(mismatches == 0 && "Gaussian padded vs 2D: interior mismatch > 1 LSB");
@@ -76,8 +74,8 @@ static void test_sobel_uniform() {
     Image src(W, H);
     std::memset(src.data, 128, N);
 
-    int16_t* Gx = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
-    int16_t* Gy = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gx = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gy = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
     std::memset(Gx, 0, N * sizeof(int16_t));
     std::memset(Gy, 0, N * sizeof(int16_t));
 
@@ -89,7 +87,8 @@ static void test_sobel_uniform() {
             assert(Gy[y * W + x] == 0 && "Sobel Gy non-zero on uniform image");
         }
 
-    free(Gx); free(Gy);
+    free(Gx);
+    free(Gy);
     printf("PASS  sobel_uniform      (100x75)\n");
 }
 
@@ -102,31 +101,34 @@ static void test_magnitude_nonzero() {
     Image blurred(W, H);
     gaussian_blur(src, blurred);
 
-    int16_t* Gx = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
-    int16_t* Gy = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gx = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gy = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
     sobel(blurred, Gx, Gy);
 
     size_t mag_bytes = (static_cast<size_t>(N) + 63) & ~static_cast<size_t>(63);
-    uint8_t* mag = static_cast<uint8_t*>(aligned_alloc(64, mag_bytes));
+    uint8_t *mag = static_cast<uint8_t *>(aligned_alloc(64, mag_bytes));
     compute_magnitude(Gx, Gy, mag, W, H, MagMethod::L1);
 
     uint8_t max_val = 0;
     for (int i = 0; i < N; ++i)
-        if (mag[i] > max_val) max_val = mag[i];
+        if (mag[i] > max_val)
+            max_val = mag[i];
 
     assert(max_val == 255 && "Magnitude max should be 255 after normalization");
     printf("PASS  magnitude_nonzero  (100x75, L1)\n");
 
-    free(Gx); free(Gy); free(mag);
+    free(Gx);
+    free(Gy);
+    free(mag);
 }
 
 // ── Test 4: Direction — all outputs in {0,1,2,3} ─────────────────────────────
 
 static void test_direction_range() {
-    int16_t* Gx = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
-    int16_t* Gy = static_cast<int16_t*>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gx = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gy = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
     size_t dir_bytes = (static_cast<size_t>(N) + 63) & ~static_cast<size_t>(63);
-    uint8_t* dir = static_cast<uint8_t*>(aligned_alloc(64, dir_bytes));
+    uint8_t *dir = static_cast<uint8_t *>(aligned_alloc(64, dir_bytes));
 
     for (int i = 0; i < N; ++i) {
         Gx[i] = static_cast<int16_t>(i % 200 - 100);
@@ -138,7 +140,9 @@ static void test_direction_range() {
     for (int i = 0; i < N; ++i)
         assert(dir[i] <= 3 && "Direction value out of range [0,3]");
 
-    free(Gx); free(Gy); free(dir);
+    free(Gx);
+    free(Gy);
+    free(dir);
     printf("PASS  direction_range    (100x75)\n");
 }
 
@@ -146,8 +150,7 @@ static void test_direction_range() {
 
 int main() {
     printf("\n=== QEMU-side Scalar Baseline Tests (Phase 5) ===\n");
-    printf("Image size: %dx%d (non-power-of-two, forces strip-mining tail)\n\n",
-           W, H);
+    printf("Image size: %dx%d (non-power-of-two, forces strip-mining tail)\n\n", W, H);
 
     test_gaussian_equiv();
     test_sobel_uniform();

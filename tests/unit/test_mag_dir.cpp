@@ -1,10 +1,8 @@
-#include <gtest/gtest.h> //Google test
 #include "mag_dir.h"
 #include <cstring>
+#include <gtest/gtest.h> //Google test
 
-
-static void run_mag(const int16_t* gx, const int16_t* gy,
-                    uint8_t* out, int w, int h,
+static void run_mag(const int16_t *gx, const int16_t *gy, uint8_t *out, int w, int h,
                     MagMethod m = MagMethod::L1) {
     compute_magnitude(gx, gy, out, w, h, m);
 }
@@ -24,26 +22,30 @@ TEST(Magnitude, ZeroGradientGivesZeroOutput) {
 TEST(Magnitude, NonZeroOnRandomGradient) {
     // Any nonzero gradient must produce nonzero magnitude
     const int N = 4;
-    int16_t gx[N] = {100, -50, 0,  200};
-    int16_t gy[N] = {0,   100, 80,  0 };
+    int16_t gx[N] = {100, -50, 0, 200};
+    int16_t gy[N] = {0, 100, 80, 0};
     uint8_t out[N];
     run_mag(gx, gy, out, 2, 2);
     // After normalization, max pixel must be 255
     uint8_t mx = 0;
-    for (int i = 0; i < N; i++) mx = std::max(mx, out[i]);
+    for (int i = 0; i < N; i++)
+        mx = std::max(mx, out[i]);
     EXPECT_EQ(mx, 255);
 }
 
 TEST(Magnitude, L1vsL2BothNonZero) {
     const int N = 4;
     int16_t gx[N] = {100, 50, 30, 10};
-    int16_t gy[N] = { 50, 80, 20, 60};
+    int16_t gy[N] = {50, 80, 20, 60};
     uint8_t outL1[N], outL2[N];
     run_mag(gx, gy, outL1, 2, 2, MagMethod::L1);
     run_mag(gx, gy, outL2, 2, 2, MagMethod::L2);
     // Both methods should produce output, neither should be all zero
     uint8_t sumL1 = 0, sumL2 = 0;
-    for (int i = 0; i < N; i++) { sumL1 += outL1[i]; sumL2 += outL2[i]; }
+    for (int i = 0; i < N; i++) {
+        sumL1 += outL1[i];
+        sumL2 += outL2[i];
+    }
     EXPECT_GT(sumL1, 0);
     EXPECT_GT(sumL2, 0);
 }
@@ -54,7 +56,7 @@ TEST(Direction, VerticalEdge_HorizontalGradient) {
     // Large Gx, zero Gy → direction should be 0 (0°)
     const int N = 4;
     int16_t gx[N] = {200, 200, 200, 200};
-    int16_t gy[N] = {  0,   0,   0,   0};
+    int16_t gy[N] = {0, 0, 0, 0};
     uint8_t out[N];
     compute_direction(gx, gy, out, 2, 2);
     for (int i = 0; i < N; i++)
@@ -64,7 +66,7 @@ TEST(Direction, VerticalEdge_HorizontalGradient) {
 TEST(Direction, HorizontalEdge_VerticalGradient) {
     // Zero Gx, large Gy → direction should be 2 (90°)
     const int N = 4;
-    int16_t gx[N] = {  0,   0,   0,   0};
+    int16_t gx[N] = {0, 0, 0, 0};
     int16_t gy[N] = {200, 200, 200, 200};
     uint8_t out[N];
     compute_direction(gx, gy, out, 2, 2);
@@ -86,7 +88,7 @@ TEST(Direction, DiagonalEdge_45Degrees) {
 TEST(Direction, AntiDiagonalEdge_135Degrees) {
     // Equal magnitude, opposite signs → direction 3 (135°)
     const int N = 4;
-    int16_t gx[N] = { 100,  100,  100,  100};
+    int16_t gx[N] = {100, 100, 100, 100};
     int16_t gy[N] = {-100, -100, -100, -100};
     uint8_t out[N];
     compute_direction(gx, gy, out, 2, 2);
@@ -108,10 +110,10 @@ TEST(Magnitude, NonPowerOfTwoImageSize) {
     const int W = 100, H = 75;
     const int N = W * H;
 
-    int16_t* gx = new int16_t[N];
-    int16_t* gy = new int16_t[N];
-    uint8_t* out_l1 = new uint8_t[N];
-    uint8_t* out_l2 = new uint8_t[N];
+    int16_t *gx = new int16_t[N];
+    int16_t *gy = new int16_t[N];
+    uint8_t *out_l1 = new uint8_t[N];
+    uint8_t *out_l2 = new uint8_t[N];
 
     // Fill with non-trivial gradient values
     for (int i = 0; i < N; i++) {
@@ -148,9 +150,9 @@ TEST(Direction, NonPowerOfTwoImageSize) {
     const int W = 100, H = 75;
     const int N = W * H;
 
-    int16_t* gx = new int16_t[N];
-    int16_t* gy = new int16_t[N];
-    uint8_t* out = new uint8_t[N];
+    int16_t *gx = new int16_t[N];
+    int16_t *gy = new int16_t[N];
+    uint8_t *out = new uint8_t[N];
 
     for (int i = 0; i < N; i++) {
         gx[i] = static_cast<int16_t>(i % 200 - 100);

@@ -1,17 +1,12 @@
 #include "mag_dir.h"
+#include <algorithm>
 #include <cmath>
-#include <cstdlib>   
-#include <algorithm> 
+#include <cstdlib>
 
 // ----------------->Part1:Magnitude Calculations<-----------------
 
-void compute_magnitude(const int16_t* gx,
-                       const int16_t* gy,
-                       uint8_t*       out,
-                       int            width,
-                       int            height,
-                       MagMethod      method)
-{
+void compute_magnitude(const int16_t *gx, const int16_t *gy, uint8_t *out, int width, int height,
+                       MagMethod method) {
     int n = width * height;
 
     // Temporary buffer to hold raw (un-normalized) magnitudes.
@@ -22,7 +17,7 @@ void compute_magnitude(const int16_t* gx,
     // aligned_alloc requires size to be a multiple of the alignment (64 bytes).
     size_t tmp_bytes = static_cast<size_t>(n) * sizeof(int32_t);
     tmp_bytes = (tmp_bytes + 63) & ~static_cast<size_t>(63);
-    int32_t* tmp = static_cast<int32_t*>(aligned_alloc(64, tmp_bytes));
+    int32_t *tmp = static_cast<int32_t *>(aligned_alloc(64, tmp_bytes));
 
     // --- Pass 1: compute raw magnitudes ---
     int32_t max_val = 0;
@@ -31,8 +26,7 @@ void compute_magnitude(const int16_t* gx,
         if (method == MagMethod::L1) {
             // L1 --> |Gx| + |Gy|
             // Fast, integer only, slight overestimate on diagonal edges
-            val = static_cast<int32_t>(std::abs(gx[i]))
-                + static_cast<int32_t>(std::abs(gy[i]));
+            val = static_cast<int32_t>(std::abs(gx[i])) + static_cast<int32_t>(std::abs(gy[i]));
         } else {
             // L2 norm --> sqrt(Gx^2 + Gy^2)
             // Mathematically correct, needs floating point (Difficult)
@@ -40,7 +34,7 @@ void compute_magnitude(const int16_t* gx,
             float fy = static_cast<float>(gy[i]);
             val = static_cast<int32_t>(std::sqrt(fx * fx + fy * fy));
         }
-        tmp[i]  = val;
+        tmp[i] = val;
         max_val = std::max(max_val, val);
     }
 
@@ -50,10 +44,11 @@ void compute_magnitude(const int16_t* gx,
     // requires dividing by max, which is unknown until the full scan.
     if (max_val == 0) {
         // blank image: all zeros
-        for (int i = 0; i < n; i++) out[i] = 0;
+        for (int i = 0; i < n; i++)
+            out[i] = 0;
     } else {
         for (int i = 0; i < n; i++) {
-            out[i] = static_cast<uint8_t>((tmp[i] * 255) / max_val); //Scaling to 256 Values
+            out[i] = static_cast<uint8_t>((tmp[i] * 255) / max_val); // Scaling to 256 Values
         }
     }
 
@@ -70,12 +65,7 @@ void compute_magnitude(const int16_t* gx,
 //   tan(22.5°) = 0.414 = 2/5   →  use:  |Gy|*5 < |Gx|*2
 //   tan(67.5°) = 2.414 = 12/5  →  use:  |Gy|*5 < |Gx|*12
 // This avoids all floating-point (Warning:This is not exact but better performance)
-void compute_direction(const int16_t* gx,
-                       const int16_t* gy,
-                       uint8_t*       out,
-                       int            width,
-                       int            height)
-{
+void compute_direction(const int16_t *gx, const int16_t *gy, uint8_t *out, int width, int height) {
     int n = width * height;
     for (int i = 0; i < n; i++) {
         int32_t ax = std::abs(static_cast<int32_t>(gx[i]));

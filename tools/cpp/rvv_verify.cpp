@@ -32,15 +32,15 @@
 #include <stdio.h>
 
 int main() {
-    int32_t a[16] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
-    int32_t b[16] = { 10,10,10,10,10,10,10,10,10, 10, 10, 10, 10, 10, 10, 10 };
-    int32_t c[16] = { 0 };
+    int32_t a[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    int32_t b[16] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    int32_t c[16] = {0};
 
     // Strip-mining loop — the fundamental RVV pattern.
     // vsetvl returns how many elements fit this iteration (depends on VLEN).
     // The same binary works at VLEN=128 (4 per iter), 256 (8), or 512 (16).
     int n = 16;
-    for (int i = 0; i < n; ) {
+    for (int i = 0; i < n;) {
         // vl = min(n - i, hardware_vector_length_in_elements)
         size_t vl = __riscv_vsetvl_e32m1((size_t)(n - i));
 
@@ -62,9 +62,9 @@ int main() {
     for (int j = 0; j < n; j++) {
         int expected = a[j] + 10;
         int ok = (c[j] == expected);
-        if (!ok) all_ok = 0;
-        printf("a[%2d]=%2d + 10 = c[%2d]=%2d  %s\n",
-               j, a[j], j, c[j], ok ? "OK" : "FAIL");
+        if (!ok)
+            all_ok = 0;
+        printf("a[%2d]=%2d + 10 = c[%2d]=%2d  %s\n", j, a[j], j, c[j], ok ? "OK" : "FAIL");
     }
 
     if (all_ok)

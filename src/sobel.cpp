@@ -13,19 +13,17 @@
 #include "sobel.h"
 #include <cstdint>
 
-void sobel(const Image& src, int16_t* Gx, int16_t* Gy) {
+void sobel(const Image &src, int16_t *Gx, int16_t *Gy) {
 
-    static const int16_t Kx[3][3] = {              // Sobel X kernel: detects vertical edges
-        {-1, 0, 1},
-        {-2, 0, 2},
-        {-1, 0, 1}
-    };
+    static const int16_t Kx[3][3] = {// Sobel X kernel: detects vertical edges
+                                     {-1, 0, 1},
+                                     {-2, 0, 2},
+                                     {-1, 0, 1}};
 
-    static const int16_t Ky[3][3] = {              // Sobel Y kernel: detects horizontal edges
-        {-1, -2, -1},
-        { 0,  0,  0},
-        { 1,  2,  1}
-    };
+    static const int16_t Ky[3][3] = {// Sobel Y kernel: detects horizontal edges
+                                     {-1, -2, -1},
+                                     {0, 0, 0},
+                                     {1, 2, 1}};
 
     const int R = Sob_Rad;
 
