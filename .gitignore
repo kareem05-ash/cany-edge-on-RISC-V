@@ -2,7 +2,6 @@ hello
 .vscode/
 rvv-tst
 build/
-*.raw
+*.raw       # imgs/
+*.txt       # docs/
 src/tmp_main.cpp
-docs/
-imgs/
