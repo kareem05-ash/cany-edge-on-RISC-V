@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef TOOLS_H
+#define TOOLS_H
 
 #include "img_io.h"
 #include <cstdint>

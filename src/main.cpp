@@ -21,7 +21,7 @@
 #include "sobel.h"
 #include "mag_dir.h"
 #include "edge_refinement.h"
-#include "utils.h"
+#include "tools.h"
 #include "timer.h"
 
 #include <cstdint>
