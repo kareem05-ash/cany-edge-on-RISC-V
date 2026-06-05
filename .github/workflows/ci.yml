@@ -86,8 +86,17 @@ jobs:
       id: tc_cache
       uses: actions/cache@v4
       with:
-        path: /opt/riscv
-        key: riscv-toolchain-rv64gcv-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}
+        path: ~/riscv-toolchain
+        key: riscv-toolchain-v1
+
+    - name: Validate toolchain cache
+        run: |
+          if [ -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
+            echo "Toolchain cache OK"
+          else
+            echo "Cache missing or broken"
+            exit 1
+          fi
 
     # ── Build toolchain (only on cache miss) ──────────────────────────────────
     - name: Build RISC-V GNU toolchain from source
@@ -98,15 +107,13 @@ jobs:
           https://github.com/riscv-collab/riscv-gnu-toolchain
         cd riscv-gnu-toolchain
         ./configure \
-          --prefix=/opt/riscv \
+          --prefix=$HOME/riscv-toolchain \
           --with-arch=rv64gcv \
           --with-abi=lp64d
-        sudo mkdir -p /opt/riscv
-        sudo chown "$USER" /opt/riscv
         make -j$(nproc)
 
     - name: Add toolchain to PATH
-      run: echo "/opt/riscv/bin" >> "$GITHUB_PATH"
+      run: echo "$HOME/riscv-toolchain/bin" >> "$GITHUB_PATH"
 
     - name: Verify toolchain
       run: |
