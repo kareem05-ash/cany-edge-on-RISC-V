@@ -37,11 +37,13 @@ HOST_FLAGS  := -std=c++17 -Wall -Wextra -O2
 RV_FLAGS    := -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static
 
 # ─── Directories ─────────────────────────────────────────────────────────────
-INC_DIR     := include
-BLD_HOST    := build/host
-BLD_RV      := build/riscv
-DOCS_DIR    := docs
-IMGS_DIR    := imgs
+INC_DIR     	:= include
+BLD_HOST    	:= build/host
+BLD_RV      	:= build/riscv
+DOCS_DIR    	:= docs
+IMGS_DIR    	:= imgs
+UNIT_TEST_DIR	:= tests/unit
+INTEG_TEST_DIR	:= tests/integ
 
 # ─── Runtime variables (overridable from command line) ───────────────────────
 # IMG         ?= square
@@ -63,10 +65,10 @@ PIPELINE    := src/img_io.cpp      \
                src/sobel.cpp       \
                src/mag_dir.cpp     \
                src/edge_refinement.cpp \
-               utils/gen_imgs.cpp  \
-               utils/img_utils.cpp \
-               utils/report.cpp \
-			   utils/pipeline_helpers.cpp
+               tools/cpp/gen_imgs.cpp  \
+               tools/cpp/img_utils.cpp \
+               tools/cpp/report.cpp \
+			   tools/cpp/pipeline_helpers.cpp
 
 # ─── Ensure output directories exist ─────────────────────────────────────────
 $(shell mkdir -p $(BLD_HOST) $(BLD_RV) $(DOCS_DIR) $(IMGS_DIR))
@@ -191,73 +193,73 @@ count_vec_instructions:
 # ===========================================================================================
 # TESTS — GoogleTest host-side
 # ===========================================================================================
-tst_img_io: $(COMMON) tsts/tst_img_io.cpp
+test_img_io: $(COMMON) $(UNIT_TEST_DIR)/test_img_io.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_img_io \
+		$^ -o $(BLD_HOST)/test_img_io \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_img_io
+	./$(BLD_HOST)/test_img_io
  
-tst_gaussian: $(COMMON) src/gaussian.cpp tsts/tst_gaussian.cpp
+test_gaussian: $(COMMON) src/gaussian.cpp $(UNIT_TEST_DIR)/test_gaussian.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_gaussian \
+		$^ -o $(BLD_HOST)/test_gaussian \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_gaussian
+	./$(BLD_HOST)/test_gaussian
  
-tst_sobel: $(COMMON) src/gaussian.cpp src/sobel.cpp tsts/tst_sobel.cpp
+test_sobel: $(COMMON) src/gaussian.cpp src/sobel.cpp $(UNIT_TEST_DIR)/test_sobel.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_sobel \
+		$^ -o $(BLD_HOST)/test_sobel \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_sobel
+	./$(BLD_HOST)/test_sobel
  
-tst_mag_dir: $(COMMON) src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp tsts/tst_mag_dir.cpp
+test_mag_dir: $(COMMON) src/gaussian.cpp src/sobel.cpp src/mag_dir.cpp $(UNIT_TEST_DIR)/test_mag_dir.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_mag_dir \
+		$^ -o $(BLD_HOST)/test_mag_dir \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_mag_dir
+	./$(BLD_HOST)/test_mag_dir
 
-tst_sobel_rv: $(COMMON) src/gaussian.cpp src/sobel.cpp tsts/tst_sobel_rv.cpp
+test_sobel_rv: $(COMMON) src/gaussian.cpp src/sobel.cpp $(INTEG_TEST_DIR)/test_sobel_rv.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_sobel_rv \
+		$^ -o $(BLD_HOST)/test_sobel_rv \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_sobel_rv
+	./$(BLD_HOST)/test_sobel_rv
 
-tst_edge_refinement: $(COMMON) src/gaussian.cpp src/sobel.cpp \
+test_edge_refinement: $(COMMON) src/gaussian.cpp src/sobel.cpp \
                      src/mag_dir.cpp src/edge_refinement.cpp \
-                     tsts/tst_edge_refinement.cpp
+                     $(UNIT_TEST_DIR)/test_edge_refinement.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 		-I$(INC_DIR) -I$(GTEST_INC) \
 		-L$(GTEST_LIB) \
-		$^ -o $(BLD_HOST)/tst_edge_refinement \
+		$^ -o $(BLD_HOST)/test_edge_refinement \
 		$(GTEST_LINK)
-	./$(BLD_HOST)/tst_edge_refinement
+	./$(BLD_HOST)/test_edge_refinement
 
-test: tst_img_io tst_gaussian tst_sobel tst_mag_dir tst_sobel_rv tst_edge_refinement
+test: test_img_io test_gaussian test_sobel test_mag_dir test_sobel_rv test_edge_refinement
  
 # ===========================================================================================
 # PHASE 3 — QEMU-side RVV equivalence test
 # Cross-compiles assert-based test and runs at VLEN=128, 256, 512.
 # ===========================================================================================
-$(BLD_RV)/tst_rvv_equiv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-                          src/mag_dir.cpp tsts/tst_rvv_equiv.cpp
+$(BLD_RV)/test_rvv_equiv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+                          src/mag_dir.cpp $(UNIT_TEST_DIR)/test_rvv_equiv.cpp
 	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
 
-tst_rvv_equiv: $(BLD_RV)/tst_rvv_equiv
+test_rvv_equiv: $(BLD_RV)/test_rvv_equiv
 	@echo "=== VLEN=128 ===" && \
-		qemu-riscv64 -cpu rv64,v=true,vlen=128 $(BLD_RV)/tst_rvv_equiv
+		qemu-riscv64 -cpu rv64,v=true,vlen=128 $(BLD_RV)/test_rvv_equiv
 	@echo "=== VLEN=256 ===" && \
-		qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/tst_rvv_equiv
+		qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/test_rvv_equiv
 	@echo "=== VLEN=512 ===" && \
-		qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/tst_rvv_equiv
+		qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/test_rvv_equiv
  
 # ===========================================================================================
 # PHASE 1 — RVV toolchain verification
@@ -296,6 +298,6 @@ clean_all: clean clean_imgs clean_docs
         run_target run_host run_all                         \
         bench_all sweep autovec count_vec_instructions      \
         verify_rvv                                          \
-        tst_img_io tst_gaussian tst_sobel tst_mag_dir       \
-        tst_sobel_rv tst_rvv_equiv tst_edge_refinement      \
+        test_img_io test_gaussian test_sobel test_mag_dir       \
+        test_sobel_rv test_rvv_equiv test_edge_refinement      \
         test clean clean_imgs clean_docs clean_all
