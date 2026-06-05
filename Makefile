@@ -250,7 +250,7 @@ test: test_img_io test_gaussian test_sobel test_mag_dir test_sobel_rv test_edge_
 # Cross-compiles assert-based test and runs at VLEN=128, 256, 512.
 # ===========================================================================================
 $(BLD_RV)/test_rvv_equiv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-                          src/mag_dir.cpp $(UNIT_TEST_DIR)/test_rvv_equiv.cpp
+                          src/mag_dir.cpp $(INTEG_TEST_DIR)/test_rvv_equiv.cpp
 	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
 
 test_rvv_equiv: $(BLD_RV)/test_rvv_equiv
@@ -266,7 +266,7 @@ test_rvv_equiv: $(BLD_RV)/test_rvv_equiv
 # Compiles tools/rvv_verify.cpp and runs it at VLEN=128, 256, and 512.
 # All 16 results must show OK at every VLEN before proceeding to Phase 6.
 # ===========================================================================================
-$(BLD_RV)/rvv_verify: tools/rvv_verify.cpp
+$(BLD_RV)/rvv_verify: tools/ccp/rvv_verify.cpp
 	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
 
 verify_rvv: $(BLD_RV)/rvv_verify
