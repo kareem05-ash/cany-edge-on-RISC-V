@@ -2,8 +2,8 @@
 //  >> File     : utils/gen_imgs.cpp
 // ===============================================================
 
-#include "../include/img_io.h"
-#include "../include/tools.h"
+#include "img_io.h"
+#include "tools.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

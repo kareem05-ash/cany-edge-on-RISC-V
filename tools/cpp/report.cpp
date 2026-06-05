@@ -6,7 +6,7 @@
 // All file output is host-only (guarded with #ifndef __riscv)
 // ===============================================================
 
-#include "../include/tools.h"
+#include "tools.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstring>

@@ -1,5 +1,5 @@
-#include "../include/img_io.h"
-#include "../include/tools.h"
+#include "img_io.h"
+#include "tools.h"
 #include <cstring>
 
 // Wraps a raw uint8_t buffer into an Image and saves it.
