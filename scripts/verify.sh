@@ -311,7 +311,7 @@ section "7. Project Directory Structure"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo -e "  ${C_CYAN}Project root:${C_RESET} $PROJECT_ROOT"
 
-for d in src include tests tools/cpp tools/python utils build/host build/riscv imgs docs scripts; do
+for d in src include tests tools/cpp tools/python build/host build/riscv imgs docs scripts; do
     if [[ -d "$PROJECT_ROOT/$d" ]]; then
         record_pass "dir: $d/"
     else
