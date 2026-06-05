@@ -90,13 +90,13 @@ jobs:
         key: riscv-toolchain-v1
 
     - name: Validate toolchain cache
-        run: |
-          if [ -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
-            echo "Toolchain cache OK"
-          else
-            echo "Cache missing or broken"
-            exit 1
-          fi
+      run: |
+        if [ -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
+          echo "Toolchain cache OK"
+        else
+          echo "Cache missing or broken"
+          exit 1
+        fi
 
     # ── Build toolchain (only on cache miss) ──────────────────────────────────
     - name: Build RISC-V GNU toolchain from source
