@@ -361,6 +361,9 @@ if [[ -f "$PROJECT_ROOT/Makefile" ]]; then
     check_target "clean_imgs"
     check_target "clean_docs"
     check_target "clean_all"
+    check_target "format"
+    check_target "package"
+    check_target "help"
 else
     for t in test canny_rv run_target sweep clean; do
         record_fail "make target: $t (Makefile not found)"
