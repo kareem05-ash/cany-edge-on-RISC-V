@@ -159,16 +159,16 @@ jobs:
       run: echo "$HOME/riscv-toolchain/bin" >> "$GITHUB_PATH"
 
     - name: Verify toolchain binary exists
-          run: |
-            if [ ! -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
-              echo "ERROR: toolchain binary missing after build/restore"
-              echo "Possible causes:"
-              echo "  1) The build step failed or was cancelled mid-way"
-              echo "  2) A corrupt partial toolchain was restored from cache"
-              echo "Fix: bump the cache key version suffix in ci.yml (-v1 -> -v2)"
-              exit 1
-            fi
-            echo "Binary present and executable — OK"
+      run: |
+        if [ ! -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
+          echo "ERROR: toolchain binary missing after build/restore"
+          echo "Possible causes:"
+          echo "  1) The build step failed or was cancelled mid-way"
+          echo "  2) A corrupt partial toolchain was restored from cache"
+          echo "Fix: bump the cache key version suffix in ci.yml (-v1 -> -v2)"
+          exit 1
+        fi
+        echo "Binary present and executable — OK"
 
     - name: Verify toolchain
       run: |
