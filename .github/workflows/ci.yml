@@ -6,7 +6,7 @@
 #
 #  [1] build-and-test  (GitHub-hosted ubuntu-latest)
 #        - Builds GoogleTest from source
-#        - Caches the RISC-V toolchain (/opt/riscv) keyed on toolchain commit
+#        - Caches the RISC-V toolchain (~/ riscv-toolchain) keyed on OS + v1
 #        - Builds toolchain from source on cache miss (slow first run only)
 #        - Installs QEMU via apt (qemu-user-static)
 #        - Runs host-side GoogleTest suite  (make test)
@@ -14,7 +14,7 @@
 #        - Runs RVV equivalence tests on QEMU at VLEN 128/256/512
 #        - Runs optimization sweep         (make sweep)
 #
-#  [2] verify-env  (self-hosted runner: riscv — your WSL2 machine)
+#  [2] verify-env  (self-hosted runner: riscv-dev — your WSL2 machine)
 #        - Runs scripts/verify.sh against your actual local environment
 #        - Confirms toolchain, QEMU, GoogleTest, Python, and RVV smoke test
 #        - Only runs on push to main/polish (not PRs — machine may be offline)
@@ -72,22 +72,14 @@ jobs:
         qemu-riscv64 --version
 
     # ── Toolchain cache ───────────────────────────────────────────────────────
-    # Key = OS + the HEAD commit of the upstream toolchain repo.
-    # On a cache hit the 60-90 min build is skipped entirely.
-    - name: Get riscv-gnu-toolchain HEAD commit
-      id: tc_commit
-      run: |
-        COMMIT=$(git ls-remote https://github.com/riscv-collab/riscv-gnu-toolchain HEAD \
-                 | cut -f1 | cut -c1-12)
-        echo "sha=$COMMIT" >> "$GITHUB_OUTPUT"
-        echo "Toolchain HEAD: $COMMIT"
-
+    # Key includes runner OS to avoid cross-platform cache collisions.
+    # Path must exactly match --prefix used in ./configure below.
     - name: Restore toolchain cache
       id: tc_cache
       uses: actions/cache@v4
       with:
         path: ~/riscv-toolchain
-        key: riscv-toolchain-v1
+        key: riscv-toolchain-${{ runner.os }}-v1
 
     # ── Build toolchain (only on cache miss) ──────────────────────────────────
     - name: Build RISC-V GNU toolchain from source
