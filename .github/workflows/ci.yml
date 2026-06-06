@@ -2,35 +2,50 @@
 #  .github/workflows/ci.yml
 #  Canny Edge Detection on RISC-V — CI Pipeline
 #
-#  Two jobs:
+#  Trigger policy
+#  ──────────────
+#  Job 1 (build-and-test) runs on:
+#    • Every push to any branch        → validates work in progress immediately
+#    • Every pull request into main    → required gate before merge
 #
+#  Job 2 (verify-env) runs on:
+#    • Same as Job 1 (every push + every PR into main)
+#    • continue-on-error: true + short timeout → workflow passes if WSL2
+#      machine is offline; a skipped Job 2 is never a merge blocker
+#
+#  Cache strategy
+#  ──────────────
+#  The toolchain cache is keyed on:
+#    riscv-toolchain-<runner.os>-<upstream-HEAD-12char>-v1
+#
+#  GitHub cache scoping rule (default branch = main):
+#    • Pushes to main      → save cache under main (the authoritative copy)
+#    • Pushes to any branch → restore-keys prefix match finds main's cache
+#    • PRs into main        → exact key match finds main's cache directly
+#
+#  Result: the 60-90 min toolchain build happens exactly once — on the first
+#  push that lands on main with a new toolchain commit. Every other run
+#  (any branch, any PR) reads the main cache and skips the build entirely.
+#
+#  To force a clean toolchain rebuild (e.g. after changing configure flags):
+#    bump the trailing -v<N> suffix in the cache key below.
+#
+#  Jobs
+#  ────
 #  [1] build-and-test  (GitHub-hosted ubuntu-latest)
-#        - Builds GoogleTest from source
-#        - Caches the RISC-V toolchain (~/riscv-toolchain) keyed on:
-#            runner OS + upstream toolchain HEAD commit (first 12 chars)
-#          → cache auto-invalidates when the upstream toolchain changes
-#          → cache is OS-namespaced so a macOS runner never gets a Linux hit
-#        - Builds toolchain from source on cache miss (slow first run only)
-#        - Installs QEMU via apt (qemu-user-static)
-#        - Verifies toolchain binary after every restore or build
-#        - Runs host-side GoogleTest suite  (make test)
-#        - Cross-compiles the full pipeline (make canny_rv)
-#        - Runs RVV equivalence tests on QEMU at VLEN 128/256/512
-#        - Runs optimization sweep         (make sweep W=256 H=256 I=2 VLEN=256)
+#        • Install system dependencies + QEMU
+#        • Restore or build RISC-V GNU toolchain (rv64gcv, lp64d)
+#        • Restore or build GoogleTest
+#        • Run host-side GoogleTest suite        (make test)
+#        • Cross-compile full pipeline           (make canny_rv)
+#        • RVV equivalence tests on QEMU         (VLEN = 128 / 256 / 512)
+#        • Optimization sweep on QEMU            (256×256, VLEN=256)
+#        • Upload bench results as artifact
 #
-#  [2] verify-env  (self-hosted runner: riscv-dev — your WSL2 machine)
-#        - Runs scripts/verify.sh against your actual local environment
-#        - Confirms toolchain, QEMU, GoogleTest, Python, and RVV smoke test
-#        - Only runs on push to main/polish (not PRs — machine may be offline)
-#
-#  Cache notes:
-#    Toolchain key format:  riscv-toolchain-<OS>-<upstream-HEAD-12char>-v1
-#    GoogleTest key format: googletest-<OS>-v1
-#
-#    If you change configure flags (--with-arch, --with-abi, --prefix), bump
-#    the trailing -v<N> suffix on the toolchain key to force a clean rebuild.
-#    The upstream-HEAD component handles upstream GCC/binutils changes
-#    automatically without any manual bump.
+#  [2] verify-env  (self-hosted runner: riscv-dev — WSL2 machine)
+#        • Run scripts/verify.sh
+#        • Checks toolchain, QEMU, GoogleTest, Python, RVV smoke test
+#        • Skipped gracefully if machine is offline (continue-on-error: true)
 #
 # ==============================================================================
 
@@ -38,24 +53,26 @@ name: CI
 
 on:
   push:
-    branches: [main, polish]
+    branches:
+      - '**'          # every push to every branch
   pull_request:
-    branches: [main]
+    branches:
+      - main          # every PR targeting main
 
-# Cancel in-progress runs on the same branch when a new push arrives
+# Cancel in-progress runs on the same branch/PR when a new commit arrives.
+# Prevents stacking 90-min toolchain builds when pushing multiple commits quickly.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 # ==============================================================================
 #  JOB 1 — build-and-test
-#  Runs on GitHub-hosted runner. Full cross-compile + test pipeline.
 # ==============================================================================
 jobs:
   build-and-test:
     name: Build & Test (ubuntu-latest)
     runs-on: ubuntu-latest
-    timeout-minutes: 120        # toolchain build can take ~60-90 min on cold cache
+    timeout-minutes: 120    # covers the cold-cache toolchain build (~60-90 min)
 
     steps:
 
@@ -75,7 +92,9 @@ jobs:
           qemu-user-static \
           python3 python3-pip
 
-    # ── QEMU symlink (qemu-user-static installs as qemu-riscv64-static) ───────
+    # ── QEMU symlink ──────────────────────────────────────────────────────────
+    # qemu-user-static installs the binary as qemu-riscv64-static.
+    # The Makefile and test steps call it as qemu-riscv64, so we symlink once.
     - name: Expose qemu-riscv64 on PATH
       run: |
         if command -v qemu-riscv64-static &>/dev/null && \
@@ -84,29 +103,29 @@ jobs:
         fi
         qemu-riscv64 --version
 
-    # ── Toolchain cache key ───────────────────────────────────────────────────
-    # Fetch the upstream toolchain HEAD commit once, outside the cache step,
-    # so the same value is used for both the restore key and the build condition.
-    # Using the upstream HEAD means the cache auto-invalidates when riscv-collab
-    # merges new commits — no manual version bump needed for upstream changes.
-    # For local configure-flag changes, bump the trailing -v<N> suffix instead.
-    - name: Get riscv-gnu-toolchain HEAD commit
+    # ── Resolve toolchain cache key ───────────────────────────────────────────
+    # Fetch the upstream riscv-gnu-toolchain HEAD commit (first 12 chars).
+    # This makes the cache key content-aware: when riscv-collab merges new
+    # GCC/binutils commits the key changes automatically and a fresh build
+    # is triggered — no manual bump needed for upstream changes.
+    - name: Resolve riscv-gnu-toolchain HEAD commit
       id: tc_commit
       run: |
-        COMMIT=$(git ls-remote https://github.com/riscv-collab/riscv-gnu-toolchain HEAD \
-                 | cut -f1 | cut -c1-12)
+        COMMIT=$(git ls-remote \
+          https://github.com/riscv-collab/riscv-gnu-toolchain HEAD \
+          | cut -f1 | cut -c1-12)
         echo "sha=$COMMIT" >> "$GITHUB_OUTPUT"
-        echo "Toolchain upstream HEAD: $COMMIT"
+        echo "Upstream toolchain HEAD: $COMMIT"
 
-    # ── Toolchain cache ───────────────────────────────────────────────────────
-    # Key includes:
-    #   ${{ runner.os }}                         → "Linux" on ubuntu-latest
-    #   ${{ steps.tc_commit.outputs.sha }}       → upstream HEAD (12 chars)
-    #   -v1                                      → manual bust for flag changes
+    # ── Restore toolchain cache ───────────────────────────────────────────────
+    # Exact key:    riscv-toolchain-Linux-<commit>-v1
+    #   → hits when this branch has already built and saved this exact toolchain
+    #   → always hits on main after the first push that saved it
     #
-    # This key is strictly more specific than the old bare "riscv-toolchain-v1",
-    # so there is no collision with any previously saved cache entries.
-    # Old entries will expire naturally after 7 days of inactivity.
+    # restore-keys: riscv-toolchain-Linux-
+    #   → prefix fallback: finds main's cache when the exact key is absent
+    #   → used by: new feature branches on first push, new PRs before any push
+    #   → cache-hit will be 'false' on a prefix match (see build step below)
     - name: Restore toolchain cache
       id: tc_cache
       uses: actions/cache@v4
@@ -117,42 +136,48 @@ jobs:
           riscv-toolchain-${{ runner.os }}-
 
     # ── Diagnose cache state ──────────────────────────────────────────────────
-    # Runs unconditionally on every job — provides observable evidence in logs
-    # of whether the cache was restored and whether the binary is intact.
-    # This is what made the original cache-key mismatch diagnosable.
+    # Runs unconditionally — gives observable evidence on every run so cache
+    # issues are diagnosable in seconds rather than by guessing.
     - name: Diagnose toolchain cache state
       run: |
         echo "cache-hit=${{ steps.tc_cache.outputs.cache-hit }}"
         echo "cache-key=riscv-toolchain-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}-v1"
         if [ -d "$HOME/riscv-toolchain/bin" ]; then
-          echo "Toolchain bin/ exists — checking binary"
+          echo "Toolchain bin/ present"
           du -sh "$HOME/riscv-toolchain"
           "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" --version || \
             echo "WARNING: binary present but --version failed"
         else
-          echo "Toolchain bin/ missing — will build from source"
+          echo "Toolchain bin/ absent — build step will run"
         fi
 
-    # ── Build toolchain (only on cache miss) ──────────────────────────────────
-    # Condition: cache was not restored OR the g++ binary is not executable.
-    # The second guard defends against a partial/corrupt cache being restored
-    # (e.g. from a previous run that failed mid-build and was saved incomplete).
+    # ── Build toolchain ───────────────────────────────────────────────────────
+    # Runs when:
+    #   (a) cache-hit is not 'true'  — covers both a full miss and a prefix match
+    # AND
+    #   (b) the g++ binary is not executable — defends against a corrupt or
+    #       partial cache that was saved from a previously failed build
+    #
+    # When a prefix-match restore landed (case a, binary intact from case b check):
+    #   the binary exists → the inner guard exits 0 immediately → no rebuild.
+    #
+    # When a full miss (no cache at all):
+    #   binary absent → full clone + configure + make.
     - name: Build RISC-V GNU toolchain from source
       if: steps.tc_cache.outputs.cache-hit != 'true'
       run: |
-        # If a partial restore landed via restore-keys, the binary may already
-        # exist — verify-toolchain-binary-exists will catch it if not.
-        # Only do a full clean+clone if the directory is genuinely absent.
         if [ -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
-          echo "Usable toolchain found via restore-keys fallback — skipping build"
+          echo "Usable toolchain restored via restore-keys fallback — skipping build"
           exit 0
         fi
 
+        echo "No usable toolchain found — building from source"
         rm -rf "$HOME/riscv-toolchain" "$HOME/riscv-gnu-toolchain"
 
         git clone --depth 1 --recursive --shallow-submodules \
           https://github.com/riscv-collab/riscv-gnu-toolchain \
           "$HOME/riscv-gnu-toolchain"
+
         cd "$HOME/riscv-gnu-toolchain"
         ./configure \
           --prefix="$HOME/riscv-toolchain" \
@@ -160,27 +185,22 @@ jobs:
           --with-abi=lp64d
         make -j$(nproc)
 
-    # ── Add toolchain to PATH and verify ─────────────────────────────────────
-    # Runs whether the toolchain was just built or was restored from cache.
-    # This step is the mandatory gate: if it fails, the job fails immediately
-    # with a clear error rather than propagating a broken toolchain silently.
+    # ── Add toolchain to PATH ─────────────────────────────────────────────────
     - name: Add toolchain to PATH
       run: echo "$HOME/riscv-toolchain/bin" >> "$GITHUB_PATH"
 
-    - name: Verify toolchain binary exists
+    # ── Verify toolchain ──────────────────────────────────────────────────────
+    # Mandatory gate — runs whether toolchain was just built or restored.
+    # Fails immediately with a clear message if the binary is missing or broken,
+    # rather than propagating a broken toolchain into the test steps.
+    - name: Verify toolchain
       run: |
         if [ ! -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
           echo "ERROR: toolchain binary missing after build/restore"
-          echo "Possible causes:"
-          echo "  1) The build step failed or was cancelled mid-way"
-          echo "  2) A corrupt partial toolchain was restored from cache"
-          echo "Fix: bump the cache key version suffix in ci.yml (-v1 -> -v2)"
+          echo "Likely cause: build step failed or cache was saved incomplete"
+          echo "Fix: bump the version suffix in the cache key (-v1 to -v2)"
           exit 1
         fi
-        echo "Binary present and executable — OK"
-
-    - name: Verify toolchain
-      run: |
         riscv64-unknown-elf-g++ --version
         echo "int main(){return 0;}" > /tmp/tc_check.cpp
         riscv64-unknown-elf-g++ -march=rv64gcv -mabi=lp64d -static \
@@ -189,8 +209,8 @@ jobs:
         echo "Toolchain OK"
 
     # ── GoogleTest ────────────────────────────────────────────────────────────
-    # GoogleTest is host-only (compiled with system g++), so its cache key does
-    # not need the RISC-V toolchain commit — only runner OS and a manual version.
+    # Host-only (compiled with system g++). Cache key needs only runner OS
+    # and a manual version — no toolchain commit dependency.
     - name: Restore GoogleTest cache
       id: gtest_cache
       uses: actions/cache@v4
@@ -203,8 +223,7 @@ jobs:
       run: |
         cd "$HOME"
         git clone --depth 1 https://github.com/google/googletest.git
-        cd googletest
-        mkdir build && cd build
+        cd googletest && mkdir build && cd build
         cmake .. \
           -DCMAKE_INSTALL_PREFIX="$HOME/googletest-install" \
           -DCMAKE_BUILD_TYPE=Release \
@@ -220,28 +239,26 @@ jobs:
 
     # ── Python packages ───────────────────────────────────────────────────────
     - name: Install Python packages
-      run: |
-        python3 -m pip install --break-system-packages numpy matplotlib
+      run: python3 -m pip install --break-system-packages numpy matplotlib
 
-    # ── Host-side GoogleTest suite ────────────────────────────────────────────
-    - name: Run host-side tests (make test)
+    # ── Host-side tests ───────────────────────────────────────────────────────
+    - name: Run host-side GoogleTest suite (make test)
       run: make test
 
-    # ── Cross-compile pipeline ────────────────────────────────────────────────
+    # ── Cross-compile ─────────────────────────────────────────────────────────
     - name: Cross-compile RISC-V pipeline (make canny_rv)
       run: make canny_rv
 
-    # ── RVV equivalence tests on QEMU ─────────────────────────────────────────
+    # ── RVV equivalence tests ─────────────────────────────────────────────────
     - name: Build RVV equivalence test binary
       run: |
-        make $(BLD_RV)/test_rvv_equiv || \
-        make -f Makefile build/riscv/test_rvv_equiv || \
+        make build/riscv/test_rvv_equiv || \
         ( \
           riscv64-unknown-elf-g++ \
             -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static \
             -Iinclude \
             src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-            src/mag_dir.cpp tests/test_rvv_equiv.cpp \
+            src/mag_dir.cpp tests/integ/test_rvv_equiv.cpp \
             -o build/riscv/test_rvv_equiv \
         )
 
@@ -255,6 +272,7 @@ jobs:
       run: qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/test_rvv_equiv
 
     # ── Optimization sweep ────────────────────────────────────────────────────
+    # 256×256 intentionally — keeps CI fast. Use 512×512 locally.
     - name: Optimization sweep (make sweep)
       run: make sweep W=256 H=256 I=2 VLEN=256
 
@@ -269,14 +287,15 @@ jobs:
 
 # ==============================================================================
 #  JOB 2 — verify-env
-#  Runs on your self-hosted WSL2 machine (label: riscv-dev).
-#  Calls scripts/verify.sh which checks the full local environment.
-#  Only on push — not PRs, since your machine may be offline.
+#  Self-hosted WSL2 machine (riscv-dev).
+#  continue-on-error: true — workflow passes even if machine is offline.
+#  timeout-minutes: 10     — if the runner never picks up the job (offline),
+#                            it fails after 10 min rather than blocking forever.
 # ==============================================================================
   verify-env:
     name: Verify Local Environment (riscv-dev)
     runs-on: [self-hosted, riscv-dev]
-    if: github.event_name == 'push'
+    continue-on-error: true
     timeout-minutes: 10
 
     steps:
