@@ -6,18 +6,31 @@
 #
 #  [1] build-and-test  (GitHub-hosted ubuntu-latest)
 #        - Builds GoogleTest from source
-#        - Caches the RISC-V toolchain (~/ riscv-toolchain) keyed on OS + v1
+#        - Caches the RISC-V toolchain (~/riscv-toolchain) keyed on:
+#            runner OS + upstream toolchain HEAD commit (first 12 chars)
+#          → cache auto-invalidates when the upstream toolchain changes
+#          → cache is OS-namespaced so a macOS runner never gets a Linux hit
 #        - Builds toolchain from source on cache miss (slow first run only)
 #        - Installs QEMU via apt (qemu-user-static)
+#        - Verifies toolchain binary after every restore or build
 #        - Runs host-side GoogleTest suite  (make test)
 #        - Cross-compiles the full pipeline (make canny_rv)
 #        - Runs RVV equivalence tests on QEMU at VLEN 128/256/512
-#        - Runs optimization sweep         (make sweep)
+#        - Runs optimization sweep         (make sweep W=256 H=256 I=2 VLEN=256)
 #
 #  [2] verify-env  (self-hosted runner: riscv-dev — your WSL2 machine)
 #        - Runs scripts/verify.sh against your actual local environment
 #        - Confirms toolchain, QEMU, GoogleTest, Python, and RVV smoke test
 #        - Only runs on push to main/polish (not PRs — machine may be offline)
+#
+#  Cache notes:
+#    Toolchain key format:  riscv-toolchain-<OS>-<upstream-HEAD-12char>-v1
+#    GoogleTest key format: googletest-<OS>-v1
+#
+#    If you change configure flags (--with-arch, --with-abi, --prefix), bump
+#    the trailing -v<N> suffix on the toolchain key to force a clean rebuild.
+#    The upstream-HEAD component handles upstream GCC/binutils changes
+#    automatically without any manual bump.
 #
 # ==============================================================================
 
@@ -71,30 +84,79 @@ jobs:
         fi
         qemu-riscv64 --version
 
+    # ── Toolchain cache key ───────────────────────────────────────────────────
+    # Fetch the upstream toolchain HEAD commit once, outside the cache step,
+    # so the same value is used for both the restore key and the build condition.
+    # Using the upstream HEAD means the cache auto-invalidates when riscv-collab
+    # merges new commits — no manual version bump needed for upstream changes.
+    # For local configure-flag changes, bump the trailing -v<N> suffix instead.
+    - name: Get riscv-gnu-toolchain HEAD commit
+      id: tc_commit
+      run: |
+        COMMIT=$(git ls-remote https://github.com/riscv-collab/riscv-gnu-toolchain HEAD \
+                 | cut -f1 | cut -c1-12)
+        echo "sha=$COMMIT" >> "$GITHUB_OUTPUT"
+        echo "Toolchain upstream HEAD: $COMMIT"
+
     # ── Toolchain cache ───────────────────────────────────────────────────────
-    # Key includes runner OS to avoid cross-platform cache collisions.
-    # Path must exactly match --prefix used in ./configure below.
+    # Key includes:
+    #   ${{ runner.os }}                         → "Linux" on ubuntu-latest
+    #   ${{ steps.tc_commit.outputs.sha }}       → upstream HEAD (12 chars)
+    #   -v1                                      → manual bust for flag changes
+    #
+    # This key is strictly more specific than the old bare "riscv-toolchain-v1",
+    # so there is no collision with any previously saved cache entries.
+    # Old entries will expire naturally after 7 days of inactivity.
     - name: Restore toolchain cache
       id: tc_cache
       uses: actions/cache@v4
       with:
         path: ~/riscv-toolchain
-        key: riscv-toolchain-${{ runner.os }}-v1
+        key: riscv-toolchain-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}-v1
+
+    # ── Diagnose cache state ──────────────────────────────────────────────────
+    # Runs unconditionally on every job — provides observable evidence in logs
+    # of whether the cache was restored and whether the binary is intact.
+    # This is what made the original cache-key mismatch diagnosable.
+    - name: Diagnose toolchain cache state
+      run: |
+        echo "cache-hit=${{ steps.tc_cache.outputs.cache-hit }}"
+        echo "cache-key=riscv-toolchain-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}-v1"
+        if [ -d "$HOME/riscv-toolchain/bin" ]; then
+          echo "Toolchain bin/ exists — checking binary"
+          du -sh "$HOME/riscv-toolchain"
+          "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" --version || \
+            echo "WARNING: binary present but --version failed"
+        else
+          echo "Toolchain bin/ missing — will build from source"
+        fi
 
     # ── Build toolchain (only on cache miss) ──────────────────────────────────
+    # Condition: cache was not restored OR the g++ binary is not executable.
+    # The second guard defends against a partial/corrupt cache being restored
+    # (e.g. from a previous run that failed mid-build and was saved incomplete).
     - name: Build RISC-V GNU toolchain from source
-      if: steps.tc_cache.outputs.cache-hit != 'true'
+      if: |
+        steps.tc_cache.outputs.cache-hit != 'true' ||
+        !hashFiles('~/riscv-toolchain/bin/riscv64-unknown-elf-g++')
       run: |
-        cd "$HOME"
+        # Remove any leftover partial directory from a previous failed build
+        rm -rf "$HOME/riscv-toolchain" "$HOME/riscv-gnu-toolchain"
+
         git clone --depth 1 --recursive --shallow-submodules \
-          https://github.com/riscv-collab/riscv-gnu-toolchain
-        cd riscv-gnu-toolchain
+          https://github.com/riscv-collab/riscv-gnu-toolchain \
+          "$HOME/riscv-gnu-toolchain"
+        cd "$HOME/riscv-gnu-toolchain"
         ./configure \
-          --prefix=$HOME/riscv-toolchain \
+          --prefix="$HOME/riscv-toolchain" \
           --with-arch=rv64gcv \
           --with-abi=lp64d
         make -j$(nproc)
 
+    # ── Add toolchain to PATH and verify ─────────────────────────────────────
+    # Runs whether the toolchain was just built or was restored from cache.
+    # This step is the mandatory gate: if it fails, the job fails immediately
+    # with a clear error rather than propagating a broken toolchain silently.
     - name: Add toolchain to PATH
       run: echo "$HOME/riscv-toolchain/bin" >> "$GITHUB_PATH"
 
@@ -104,9 +166,12 @@ jobs:
         echo "int main(){return 0;}" > /tmp/tc_check.cpp
         riscv64-unknown-elf-g++ -march=rv64gcv -mabi=lp64d -static \
           /tmp/tc_check.cpp -o /tmp/tc_check
+        file /tmp/tc_check
         echo "Toolchain OK"
 
     # ── GoogleTest ────────────────────────────────────────────────────────────
+    # GoogleTest is host-only (compiled with system g++), so its cache key does
+    # not need the RISC-V toolchain commit — only runner OS and a manual version.
     - name: Restore GoogleTest cache
       id: gtest_cache
       uses: actions/cache@v4
@@ -174,7 +239,7 @@ jobs:
     - name: Optimization sweep (make sweep)
       run: make sweep W=256 H=256 I=2 VLEN=256
 
-    # ── Upload sweep results as artifact ─────────────────────────────────────
+    # ── Upload artifacts ──────────────────────────────────────────────────────
     - name: Upload bench results
       if: always()
       uses: actions/upload-artifact@v4
