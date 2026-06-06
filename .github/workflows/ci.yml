@@ -113,6 +113,8 @@ jobs:
       with:
         path: ~/riscv-toolchain
         key: riscv-toolchain-${{ runner.os }}-${{ steps.tc_commit.outputs.sha }}-v1
+        restore-keys: |
+          riscv-toolchain-${{ runner.os }}-
 
     # ── Diagnose cache state ──────────────────────────────────────────────────
     # Runs unconditionally on every job — provides observable evidence in logs
@@ -138,7 +140,14 @@ jobs:
     - name: Build RISC-V GNU toolchain from source
       if: steps.tc_cache.outputs.cache-hit != 'true'
       run: |
-        # Remove any leftover partial directory from a previous failed build
+        # If a partial restore landed via restore-keys, the binary may already
+        # exist — verify-toolchain-binary-exists will catch it if not.
+        # Only do a full clean+clone if the directory is genuinely absent.
+        if [ -x "$HOME/riscv-toolchain/bin/riscv64-unknown-elf-g++" ]; then
+          echo "Usable toolchain found via restore-keys fallback — skipping build"
+          exit 0
+        fi
+
         rm -rf "$HOME/riscv-toolchain" "$HOME/riscv-gnu-toolchain"
 
         git clone --depth 1 --recursive --shallow-submodules \
