@@ -80,31 +80,33 @@ $(shell mkdir -p $(BLD_HOST) $(BLD_RV) $(DOCS_DIR) $(IMGS_DIR))
 help:
 	@echo "Available targets:"
 	@echo ""
-	@echo "  make run_host [W=.. H=.. I=..]        	: Run pipeline natively on host"
-	@echo "  make run_target [W=.. H=.. I=..]      	: Run RISC-V binary under QEMU"
-	@echo "  make run_all                          	: Run QEMU with VLEN=128/256/512"
-	@echo ""	
-	@echo "  make test                             	: Run all GoogleTest unit + integration tests"
-	@echo "  make test_img_io                      	: Test image I/O module"
-	@echo "  make test_gaussian                    	: Test Gaussian filter"
-	@echo "  make test_sobel                       	: Test Sobel edge detection"
-	@echo "  make test_mag_dir                     	: Test magnitude & direction"
-	@echo "  make test_edge_refinement             	: Test edge refinement stage"
-	@echo ""	
-	@echo "  make test_rvv_equiv                   	: Run RVV equivalence tests (VLEN sweep)"
-	@echo "  make verify_rvv                       	: Verify RVV toolchain correctness"
-	@echo ""	
-	@echo "  make sweep                            	: Benchmark optimization levels on QEMU"
-	@echo "  make autovec                          	: Generate auto-vectorization report"
-	@echo "  make count_vec_instructions           	: Count RVV instructions in binaries"
-	@echo ""	
-	@echo "  make canny_rv                         	: Build RISC-V binary (default config)"
-	@echo "  make clean                            	: Remove build artifacts"
-	@echo "  make clean_all                        	: Clean everything (build + imgs + docs)"
-	@echo ""	
-	@echo "  make format                           	: Auto-format all C/C++ source files using clang-format"
-	@echo "  make package                          	: Generate a package of the whole project (zip)"
-	@echo "  make help				    	: Shows this message"
+	@echo "  make run_host [W=.. H=.. I=..]        : Run pipeline natively on host"
+	@echo "  make run_target [W=.. H=.. I=..]      : Run RISC-V binary under QEMU"
+	@echo "  make run_all                          : Run QEMU with VLEN=128/256/512"
+	@echo ""
+	@echo "  make test                             : Run all GoogleTest unit + integration tests"
+	@echo "  make test_img_io                      : Test image I/O module"
+	@echo "  make test_gaussian                    : Test Gaussian filter"
+	@echo "  make test_sobel                       : Test Sobel edge detection"
+	@echo "  make test_mag_dir                     : Test magnitude & direction"
+	@echo "  make test_edge_refinement             : Test edge refinement stage"
+	@echo ""
+	@echo "  make test_rvv_equiv                   : Run RVV equivalence tests (VLEN sweep)"
+	@echo "  make verify_rvv                       : Verify RVV toolchain correctness"
+	@echo ""
+	@echo "  make sweep                            : Benchmark optimization levels on QEMU"
+	@echo "  make autovec                          : Generate auto-vectorization report"
+	@echo "  make count_vec_instructions           : Count RVV instructions in binaries"
+	@echo ""
+	@echo "  make canny_rv                         : Build RISC-V binary (default config)"
+	@echo "  make clean                            : Remove build artifacts"
+	@echo "  make clean_all                        : Clean everything (build + imgs + docs)"
+	@echo ""
+	@echo "  make format                           : Auto-format all C/C++ source files using clang-format"
+	@echo "  make package                          : Generate a ZIP archive of the project"
+	@echo "  make docs                             : Auto-generate project documentation (HTML & LaTeX)"
+	@echo "  make help                             : Show this help message"
+	@echo ""
 
 # ===========================================================================================
 # PACKAGING
@@ -145,6 +147,15 @@ format:
 	@echo "Running clang-format across project..."
 	@find src include tools tests -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 	@echo "Formatting complete."
+
+# ===========================================================================================
+# Doxygen
+# ===========================================================================================
+
+docs:
+	doxygen Doxyfile
+	@echo "Docs generated at docs/doxygen/html/index.html"
+	@echo "Docs generated at docs/doxygen/latex/index.tex"
 
 # ===========================================================================================
 # DEFAULT
@@ -374,4 +385,4 @@ clean_all: clean clean_imgs clean_docs
         test_img_io test_gaussian test_sobel test_mag_dir   \
         test_sobel_rv test_rvv_equiv test_edge_refinement   \
         test clean clean_imgs clean_docs clean_all		 	\
-		format package help
+		format package help docs

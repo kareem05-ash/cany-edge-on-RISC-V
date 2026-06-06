@@ -4,10 +4,11 @@ build/riscv/*
 !build/host/.gitkeep
 !build/riscv/.gitkeep
 
-# Generated images and reports
+# Generated images & reports
 imgs/*.raw
 docs/*.png
 docs/*.txt
+docs/doxygen/*
 
 # Object files
 *.o
