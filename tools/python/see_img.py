@@ -1,8 +1,6 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import os
-import sys
-import math
+import sys, os, math
+from raw_loader import load_u8, DOCS
 
 # == Paths =====================================================================
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,11 +29,7 @@ else:
     img_names = args
 
 # == Load images ===============================================================
-images = []
-for name in img_names:
-    path = os.path.join(IMGS, f"{name}.raw")
-    img = np.fromfile(path, dtype=np.uint8).reshape(H, W)
-    images.append((name, img))
+images = [(name, load_u8(name, W, H)) for name in img_names]
 
 # == Plot ======================================================================
 n = len(images)

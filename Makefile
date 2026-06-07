@@ -234,7 +234,9 @@ sweep: bench_all
 	@echo " Image index: $(I)  $(W)x$(H)"                         | tee -a $(DOCS_DIR)/bench_results.txt
 	@echo "======================================================"  | tee -a $(DOCS_DIR)/bench_results.txt
 	@for FLAG in O0 O2 O3 O3_novec Os Ofast; do \
-		echo "--- -$$FLAG ---" | tee -a $(DOCS_DIR)/bench_results.txt; \
+		echo "" | tee -a $(DOCS_DIR)/bench_results.txt; \
+		echo "====================================================================================================" | tee -a $(DOCS_DIR)/bench_results.txt; \
+		echo "================================================ -$$FLAG ===============================================" | tee -a $(DOCS_DIR)/bench_results.txt; \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
 			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) \
 			| tee -a $(DOCS_DIR)/bench_results.txt; \
@@ -243,6 +245,8 @@ sweep: bench_all
 	done
 	@echo "" | tee -a $(DOCS_DIR)/bench_results.txt
 	@echo "Sweep complete. Full results -> $(DOCS_DIR)/bench_results.txt"
+	@echo "===================================================================================================="
+	@echo "===================================================================================================="
  
 # ===========================================================================================
 # PHASE 4 — Auto-vectorization report

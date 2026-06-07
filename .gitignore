@@ -1,8 +1,30 @@
-hello
+# Build outputs
+build/host/*
+build/riscv/*
+!build/host/.gitkeep
+!build/riscv/.gitkeep
+
+# Generated images & reports
+imgs/*.raw
+docs/*.png
+docs/*.txt
+docs/doxygen/*
+
+# Object files
+*.o
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# Editor
 .vscode/
-rvv-tst
-build/
-*.raw
-src/tmp_main.cpp
-docs/
-imgs/
+
+# General 
+*.zip
+chore-repo-improvements.md
