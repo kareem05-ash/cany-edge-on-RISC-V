@@ -1,179 +1,137 @@
 #include "gaussian.h"
 #include <cstdint>
-#include <cstdlib> // aligned_alloc, free
-#include <cstring> // memset
+#include <cstring>
+#include <cstdlib>
+#include <algorithm>
 
-// ─── Kernel pointer table for convolve2d ─────────────────────────────────────
-//
-// convolve2d takes a `const CoeffT* const*` (array of row pointers) so it stays
-// independent of any specific kernel layout. We build the pointer table once here
-// as a file-static constant — visible only inside this translation unit.
+// 5x5 Gaussian kernel (sigma ~1.0, sum = 273)
+static const int16_t KERNEL[5][5] = {
+    {  1,  4,  7,  4,  1 },
+    {  4, 16, 26, 16,  4 },
+    {  7, 26, 41, 26,  7 },
+    {  4, 16, 26, 16,  4 },
+    {  1,  4,  7,  4,  1 }
+};
+static const int16_t* KERNEL_ROWS[5] = {
+    KERNEL[0], KERNEL[1], KERNEL[2], KERNEL[3], KERNEL[4]
+};
 
-static const int16_t *GAUSS_KERNEL_ROWS[5] = {GAUSS_KERNEL[0], GAUSS_KERNEL[1], GAUSS_KERNEL[2],
-                                              GAUSS_KERNEL[3], GAUSS_KERNEL[4]};
+// 1D kernel for the separable pass { 1, 4, 6, 4, 1 }, sum = 16
+static const int16_t KERNEL_1D[5] = { 1, 4, 6, 4, 1 };
 
-// ─── gaussian_blur ────────────────────────────────────────────────────────────
-//
-// Explicit instantiation of convolve2d with the concrete types used for
-// Gaussian blur. This keeps the template definition in the header (so
-// specialisations can be added later, e.g. an RVV version) while putting
-// the object code here.
-//
-// Template arguments:
-//   PixelT = uint8_t  — input/output pixels are 8-bit grayscale
-//   AccumT = int32_t  — accumulator must hold up to 255*41*25 ~ 261 375
-//   CoeffT = int16_t  — kernel coefficients fit in 16 bits (max value 41)
-
-void gaussian_blur(const Image &src, Image &dst) {
-    convolve2d<uint8_t, int32_t, int16_t>(src.data, dst.data, src.width, src.height,
-                                          GAUSS_KERNEL_ROWS, GAUSS_RADIUS,
-                                          static_cast<int32_t>(GAUSS_SUM));
+// ── convolve2d template ───────────────────────────────────────────────────────
+// Slides the kernel over every pixel. Out-of-bounds pixels are treated as 0.
+template<typename PixelT, typename AccumT, typename CoeffT>
+void convolve2d(const PixelT* src, PixelT* dst,
+                int width, int height,
+                const CoeffT* const* kernel,
+                int radius,
+                AccumT divisor)
+{
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            AccumT acc = 0;
+            for (int ky = -radius; ky <= radius; ++ky) {
+                for (int kx = -radius; kx <= radius; ++kx) {
+                    int sy = y + ky, sx = x + kx;
+                    if (sy >= 0 && sy < height && sx >= 0 && sx < width)
+                        acc += static_cast<AccumT>(src[sy * width + sx])
+                             * static_cast<AccumT>(kernel[ky + radius][kx + radius]);
+                }
+            }
+            AccumT result = acc / divisor;
+            dst[y * width + x] = static_cast<PixelT>(
+                std::clamp(result, static_cast<AccumT>(0), static_cast<AccumT>(255)));
+        }
+    }
 }
 
-// ─── gaussian_blur_separable ──────────────────────────────────────────────────
-//
-// Deeper Idea: decompose the 5x5 Gaussian into two 1-D passes.
-//
-// The 5x5 kernel is separable: K = v * h^T  where  v = h = [1 4 7 4 1].
-// Instead of 25 multiply-adds per pixel (full 2-D), we do:
-//   Pass 1 (horizontal): 5 multiply-adds per pixel -> intermediate buffer (int16_t)
-//   Pass 2 (vertical):   5 multiply-adds per pixel -> output (uint8_t)
-// Total: 10 multiply-adds per pixel — 2.5x fewer than the 2-D version.
-//
-// Memory access pattern note (for the report):
-//   Pass 1 reads each row sequentially -> excellent cache locality.
-//   Pass 2 reads each column of the intermediate -> stride = width, potentially
-//   cache-unfriendly on large images. On real hardware this can negate the
-//   arithmetic savings; on QEMU (which does not model cache) it will still
-//   measure faster because QEMU counts translated instructions, not memory stalls.
-//
-// Divisor: each pass divides by 17, so the combined divisor is 17x17=289,
-// slightly different from the 2-D kernel's 273. This means separable output
-// may differ from 2-D output by +-1 LSB, which is acceptable (verified in tests).
+// Explicit instantiation for the types used in this project
+template void convolve2d<uint8_t, int32_t, int16_t>(
+    const uint8_t*, uint8_t*, int, int, const int16_t* const*, int, int32_t);
 
-void gaussian_blur_separable(const Image &src, Image &dst) {
-    const int W = src.width;
-    const int H = src.height;
-    const int R = GAUSS_RADIUS; // = 2
+// ── gaussian_blur ─────────────────────────────────────────────────────────────
+// Baseline: delegates to convolve2d with the 5x5 kernel and divisor 273
+void gaussian_blur(const Image& src, Image& dst)
+{
+    convolve2d<uint8_t, int32_t, int16_t>(
+        src.data, dst.data, src.width, src.height,
+        KERNEL_ROWS, GAUSS_RADIUS, static_cast<int32_t>(GAUSS_SUM));
+}
 
-    // Intermediate buffer: int16_t to hold the result of the horizontal pass
-    // before the second division. int16_t is sufficient: max value after
-    // horizontal pass = (255 * 17) / 17 = 255, well within int16_t range.
-    // We use int16_t (not uint8_t) because intermediate values near borders
-    // may be slightly reduced due to zero-padding.
-    //
-    // aligned_alloc requires size to be a multiple of the alignment (64 bytes).
-    // We round up to the next multiple of 64 to satisfy this requirement.
-    size_t bytes = static_cast<size_t>(W * H) * sizeof(int16_t);
-    bytes = (bytes + 63) & ~static_cast<size_t>(63); // round up to 64-byte boundary
-    int16_t *tmp = static_cast<int16_t *>(aligned_alloc(64, bytes));
+// ── gaussian_blur_separable ───────────────────────────────────────────────────
+// Pass 1: blur each row horizontally with KERNEL_1D → store raw sums in tmp[]
+// Pass 2: blur each column of tmp[] vertically, divide by 17x17=289, clamp
+void gaussian_blur_separable(const Image& src, Image& dst)
+{
+    const int W = src.width, H = src.height, R = GAUSS_RADIUS;
+    // 1D kernel {1,4,6,4,1}, divisor 16 per pass — applied as float to avoid rounding error
+    static const float K1D[5] = { 1.f, 4.f, 6.f, 4.f, 1.f };
+    static const float DIV = 16.0f;
 
-    // ── Pass 1: horizontal 1x5 convolution ───────────────────────────────────
-    // For each pixel (y, x), convolve with GAUSS_KERNEL_1D along x.
-    // Boundary: zero-pad (pixels outside image = 0).
+    // Intermediate buffer — raw float sums, no rounding between passes
+    float* tmp = static_cast<float*>(std::malloc(W * H * sizeof(float)));
+
+    // Pass 1 — horizontal, store normalised float (divide by 16)
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
-            int32_t acc = 0;
+            float acc = 0.f;
             for (int kx = -R; kx <= R; ++kx) {
                 int sx = x + kx;
-                uint8_t pixel = 0;
                 if (sx >= 0 && sx < W)
-                    pixel = src.data[y * W + sx];
-                acc += static_cast<int32_t>(pixel) * static_cast<int32_t>(GAUSS_KERNEL_1D[kx + R]);
+                    acc += static_cast<float>(src.data[y * W + sx]) * K1D[kx + R];
             }
-            // Divide by 17 to normalise the horizontal pass.
-            // Result fits in int16_t: max = (255 * 17) / 17 = 255.
-            tmp[y * W + x] = static_cast<int16_t>(acc / GAUSS_SUM_1D);
+            tmp[y * W + x] = acc / DIV;
         }
     }
 
-    // ── Pass 2: vertical 5x1 convolution ─────────────────────────────────────
-    // For each pixel (y, x), convolve tmp with GAUSS_KERNEL_1D along y.
-    // Boundary: zero-pad (rows outside image treated as 0 in tmp).
+    // Pass 2 — vertical, divide by 16 again, round once at the end
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
-            int32_t acc = 0;
+            float acc = 0.f;
             for (int ky = -R; ky <= R; ++ky) {
                 int sy = y + ky;
-                int16_t pixel = 0;
                 if (sy >= 0 && sy < H)
-                    pixel = tmp[sy * W + x];
-                acc += static_cast<int32_t>(pixel) * static_cast<int32_t>(GAUSS_KERNEL_1D[ky + R]);
+                    acc += tmp[sy * W + x] * K1D[ky + R];
             }
-            // Divide by 17 again to normalise the vertical pass.
-            int32_t result = acc / GAUSS_SUM_1D;
-            if (result < 0)
-                result = 0;
-            if (result > 255)
-                result = 255;
-            dst.data[y * W + x] = static_cast<uint8_t>(result);
+            int32_t result = static_cast<int32_t>(acc / DIV);
+            dst.data[y * W + x] = static_cast<uint8_t>(
+                std::clamp(result, static_cast<int32_t>(0), static_cast<int32_t>(255)));
         }
     }
 
-    free(tmp);
+    std::free(tmp);
 }
 
-// ─── gaussian_blur_padded ─────────────────────────────────────────────────────
-//
-// Auto-vectorization friendly Gaussian blur using pre-padded image.
-//
-// Why padding helps:
-//   The standard gaussian_blur has an if-statement inside the inner loop
-//   (boundary check: sy>=0 && sy<H && sx>=0 && sx<W). This control flow
-//   prevents the compiler from auto-vectorizing the loop — it cannot prove
-//   all iterations follow the same path.
-//
-//   By pre-padding the image with GAUSS_RADIUS rows/cols of zeros, every
-//   kernel access is always valid. The inner loop becomes a simple
-//   multiply-accumulate with no branches — the compiler CAN vectorize it.
-//
-// Memory layout:
-//   Padded buffer size: (W + 2R) x (H + 2R)
-//   Original image is copied into the center at offset (R, R).
-//   Border pixels are zero (zero-padding semantics preserved).
-//
-// Output: identical to gaussian_blur on all interior pixels.
-//         Border pixels may differ by +-1 LSB due to rounding.
+// ── gaussian_blur_padded ──────────────────────────────────────────────────────
+// Copies src into a zero-padded buffer (W+4 x H+4), then convolves with no
+// boundary checks — branch-free inner loop that the compiler can vectorise.
+void gaussian_blur_padded(const Image& src, Image& dst)
+{
+    const int W = src.width, H = src.height, R = GAUSS_RADIUS;
+    const int PW = W + 2 * R, PH = H + 2 * R;
 
-void gaussian_blur_padded(const Image &src, Image &dst) {
-    const int W = src.width;
-    const int H = src.height;
-    const int R = GAUSS_RADIUS; // = 2
-    const int PW = W + 2 * R;   // padded width
-    const int PH = H + 2 * R;   // padded height
+    // calloc zeroes the border automatically
+    uint8_t* padded = static_cast<uint8_t*>(std::calloc(PW * PH, sizeof(uint8_t)));
 
-    // Step 1: allocate padded buffer and zero-fill (zero-padding)
-    size_t pad_bytes = static_cast<size_t>(PW * PH);
-    pad_bytes = (pad_bytes + 63) & ~static_cast<size_t>(63); // align to 64 bytes
-    uint8_t *padded = static_cast<uint8_t *>(aligned_alloc(64, pad_bytes));
-    memset(padded, 0, pad_bytes); // zero-pad border (faster than a manual loop)
-
-    // Step 2: copy original image into center of padded buffer
-    // Row y of src goes to row (y+R) of padded, starting at column R
+    // Copy each original row into the interior of the padded buffer
     for (int y = 0; y < H; ++y)
-        for (int x = 0; x < W; ++x)
-            padded[(y + R) * PW + (x + R)] = src.data[y * W + x];
+        std::memcpy(padded + (y + R) * PW + R, src.data + y * W, W);
 
-    // Step 3: convolve — NO boundary check needed!
-    // Every access padded[(y+ky)*PW + (x+kx)] is valid because of the border.
-    // The inner loop is branch-free → compiler can auto-vectorize.
+    // Convolve — no bounds check needed, padded zeros handle the border
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
             int32_t acc = 0;
+            for (int ky = 0; ky <= 2 * R; ++ky)
+                for (int kx = 0; kx <= 2 * R; ++kx)
+                    acc += static_cast<int32_t>(padded[(y + ky) * PW + (x + kx)])
+                         * static_cast<int32_t>(KERNEL[ky][kx]);
 
-            for (int ky = 0; ky < 5; ++ky)
-                for (int kx = 0; kx < 5; ++kx)
-                    acc += static_cast<int32_t>(padded[(y + ky) * PW + (x + kx)]) *
-                           static_cast<int32_t>(GAUSS_KERNEL[ky][kx]);
-
-            int32_t result = acc / GAUSS_SUM;
-            if (result < 0)
-                result = 0;
-            if (result > 255)
-                result = 255;
-            dst.data[y * W + x] = static_cast<uint8_t>(result);
+            int32_t result = acc / static_cast<int32_t>(GAUSS_SUM);
+            dst.data[y * W + x] = static_cast<uint8_t>(
+                std::clamp(result, static_cast<int32_t>(0), static_cast<int32_t>(255)));
         }
     }
 
-    free(padded);
+    std::free(padded);
 }
