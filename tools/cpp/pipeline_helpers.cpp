@@ -109,6 +109,44 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
 // Gaussian and Sobel use scalar fallbacks until RVV implementations are ready.
 // Magnitude stays scalar — RVV not applied for this stage.
 // ====================================================================================================
+#ifndef __riscv
+void save_outputs(const char *img_name, int W, int H, const char *suffix, const Image &src,
+                  const Image &blurred, const uint8_t *mag, const uint8_t *out_refined) {
+    char path[512];
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_src.raw", img_name, W, H, suffix);
+    save_img(path, src);
+    printf("    > Saved: %s\n", path);
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_blurred.raw", img_name, W, H, suffix);
+    save_img(path, blurred);
+    printf("    > Saved: %s\n", path);
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_mag.raw", img_name, W, H, suffix);
+    save_raw_u8(path, mag, W, H);
+    printf("    > Saved: %s\n", path);
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_refined.raw", img_name, W, H, suffix);
+    save_raw_u8(path, out_refined, W, H);
+    printf("    > Saved: %s\n", path);
+}
+#endif // __riscv
+
+void free_pipeline_outputs(PipelineOutputs &p) {
+    delete p.blurred;
+    delete[] p.mag;
+    delete[] p.out_refined;
+    p.blurred = nullptr;
+    p.mag = nullptr;
+    p.out_refined = nullptr;
+}
+
+
+#ifdef __riscv
+#include "gaussian_rvv.h"
+#include "sobel_rvv.h"
+#endif
+
 void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
                       TimingResult results[7], PipelineOutputs &out) {
     Timer t;
