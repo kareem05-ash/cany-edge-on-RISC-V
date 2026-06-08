@@ -337,4 +337,37 @@ void save_outputs(const char *img_name, int W, int H, const char *suffix,
  */
 void free_pipeline_outputs(PipelineOutputs &p);
 
+// ─── RVV Pipeline (tools/cpp/pipeline_helpers.cpp) ────────────────────────────
+
+/**
+ * @brief Aggregated RVV timing result for one VLEN configuration.
+ *
+ * Used by report_rvv_speedup() to compare scalar vs RVV across VLEN values.
+ * The 7 stages match run_pipeline() stage ordering exactly.
+ */
+struct RvvTimingResult {
+    TimingResult stages[7]; ///< Per-stage timing (same order as run_pipeline)
+    int vlen;               ///< VLEN value used (128, 256, or 512)
+};
+
+/**
+ * @brief Run the RVV-optimized pipeline, measure per-stage timing.
+ *
+ * Same structure as run_pipeline() but calls gaussian_blur_rvv(), sobel_rvv(),
+ * and compute_magnitude_rvv() for the three hot stages. Direction, NMS,
+ * thresholding, and hysteresis remain scalar (not hot enough to optimize).
+ *
+ * Stage names in results[].name are annotated with "(RVV)" to distinguish
+ * from scalar in timing tables.
+ *
+ * @param src     Input grayscale image.
+ * @param W       Image width in pixels.
+ * @param H       Image height in pixels.
+ * @param n_iter  Number of timed iterations.
+ * @param results Output array of 7 TimingResult structs (caller-allocated).
+ * @param out     Output buffers — heap-allocated; caller frees with free_pipeline_outputs().
+ */
+void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
+                      TimingResult results[7], PipelineOutputs &out);
+                      
 #endif // TOOLS_H
