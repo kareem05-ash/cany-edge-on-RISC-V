@@ -178,8 +178,8 @@ int main(int argc, char *argv[]) {
     // The Makefile run_all target runs this binary three times.
     const TimingResult *rvv_ptrs[3] = {results_rvv, results_rvv, results_rvv};
     report_rvv_speedup(results_pad, rvv_ptrs, 7, "docs/speedup_rvv.txt");
-    printf("\n-------------------------------------------------------------------\
-    ---------\n");
+    printf("\n-------------------------------------------------------------------------------------"
+           "---------------\n");
 #endif // __riscv
 
     // ── Save outputs (host only) ────────────────────────────────────────────

@@ -22,17 +22,17 @@ void report_timing_table(const TimingResult *results, int n, const char *out_pat
         total += results[i].time_us;
 
     // 2. Print table header to stdout
-    printf("\n%-30s %12s %10s\n", "Stage", "Time (us)", "% Total");
-    printf("%-30s %12s %10s\n", "-----", "---------", "-------");
+    printf("\n%-40s %12s %10s\n", "Stage", "Time (us)", "% Total");
+    printf("%-40s %12s %10s\n", "-----", "---------", "-------");
 
     // 3. For each stage: print name, time_us, percentage of total
     for (int i = 0; i < n; i++) {
         double pct = (total > 0.0) ? (results[i].time_us / total * 100.0) : 0.0;
-        printf("%d) %-27s %12.2f %9.1f%%\n", i + 1, results[i].name, results[i].time_us, pct);
+        printf("%d) %-37s %12.2f %9.1f%%\n", i + 1, results[i].name, results[i].time_us, pct);
     }
 
     // 4. Print total row
-    printf("%-30s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
+    printf("%-40s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
 
 #ifndef __riscv
     // 5. Write same table to out_path txt file
@@ -41,13 +41,13 @@ void report_timing_table(const TimingResult *results, int n, const char *out_pat
         fprintf(stderr, "Error: can't open %s for writing\n", out_path);
         return;
     }
-    fprintf(f, "%-30s %12s %10s\n", "Stage", "Time (us)", "% Total");
-    fprintf(f, "%-30s %12s %10s\n", "-----", "---------", "-------");
+    fprintf(f, "%-40s %12s %10s\n", "Stage", "Time (us)", "% Total");
+    fprintf(f, "%-40s %12s %10s\n", "-----", "---------", "-------");
     for (int i = 0; i < n; i++) {
         double pct = (total > 0.0) ? (results[i].time_us / total * 100.0) : 0.0;
-        fprintf(f, "%d) %-27s %12.2f %9.1f%%\n", i + 1, results[i].name, results[i].time_us, pct);
+        fprintf(f, "%d) %-37s %12.2f %9.1f%%\n", i + 1, results[i].name, results[i].time_us, pct);
     }
-    fprintf(f, "%-30s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
+    fprintf(f, "%-40s %12.2f %9.1f%%\n", "TOTAL", total, 100.0);
     fclose(f);
     printf("   > Timing table saved -> %s\n", out_path);
 #endif
@@ -279,9 +279,9 @@ void report_autovec_summary(const char *autovec_path, const char *out_path) {
 void report_rvv_speedup(const TimingResult *scalar, const TimingResult *rvv[3], int n_stages,
                         const char *out_path) {
     // 1. Print table header
-    printf("\n%-20s %12s %12s %12s %12s %12s\n", "Stage", "Scalar(us)", "RVV-128(us)",
+    printf("\n%-30s %12s %12s %12s %12s %12s\n", "Stage", "Scalar(us)", "RVV-128(us)",
            "RVV-256(us)", "RVV-512(us)", "Speedup-512");
-    printf("%-20s %12s %12s %12s %12s %12s\n", "-----", "----------", "-----------", "-----------",
+    printf("%-30s %12s %12s %12s %12s %12s\n", "-----", "----------", "-----------", "-----------",
            "-----------", "-----------");
 
     double total_scalar = 0.0;
@@ -290,7 +290,7 @@ void report_rvv_speedup(const TimingResult *scalar, const TimingResult *rvv[3], 
     // 2. For each stage: print scalar time, RVV times, speedup = scalar/rvv_512
     for (int i = 0; i < n_stages; i++) {
         double speedup = (rvv[2][i].time_us > 0.0) ? (scalar[i].time_us / rvv[2][i].time_us) : 0.0;
-        printf("%-20s %12.2f %12.2f %12.2f %12.2f %11.2fx\n", scalar[i].name, scalar[i].time_us,
+        printf("%-30s %12.2f %12.2f %12.2f %12.2f %11.2fx\n", scalar[i].name, scalar[i].time_us,
                rvv[0][i].time_us, // VLEN=128
                rvv[1][i].time_us, // VLEN=256
                rvv[2][i].time_us, // VLEN=512
@@ -302,7 +302,7 @@ void report_rvv_speedup(const TimingResult *scalar, const TimingResult *rvv[3], 
 
     // 3. Print total row with overall speedup
     double overall_speedup = (total_rvv512 > 0.0) ? (total_scalar / total_rvv512) : 0.0;
-    printf("%-20s %12.2f %12s %12s %12.2f %11.2fx\n", "TOTAL", total_scalar, "-", "-", total_rvv512,
+    printf("%-30s %12.2f %12s %12s %12.2f %11.2fx\n", "TOTAL", total_scalar, "-", "-", total_rvv512,
            overall_speedup);
 
 #ifndef __riscv
@@ -312,17 +312,17 @@ void report_rvv_speedup(const TimingResult *scalar, const TimingResult *rvv[3], 
         fprintf(stderr, "Error: can't open %s for writing\n", out_path);
         return;
     }
-    fprintf(f, "%-20s %12s %12s %12s %12s %12s\n", "Stage", "Scalar(us)", "RVV-128(us)",
+    fprintf(f, "%-30s %12s %12s %12s %12s %12s\n", "Stage", "Scalar(us)", "RVV-128(us)",
             "RVV-256(us)", "RVV-512(us)", "Speedup-512");
-    fprintf(f, "%-20s %12s %12s %12s %12s %12s\n", "-----", "----------", "-----------",
+    fprintf(f, "%-30s %12s %12s %12s %12s %12s\n", "-----", "----------", "-----------",
             "-----------", "-----------", "-----------");
     for (int i = 0; i < n_stages; i++) {
         double speedup = (rvv[2][i].time_us > 0.0) ? (scalar[i].time_us / rvv[2][i].time_us) : 0.0;
-        fprintf(f, "%-20s %12.2f %12.2f %12.2f %12.2f %11.2fx\n", scalar[i].name, scalar[i].time_us,
+        fprintf(f, "%-30s %12.2f %12.2f %12.2f %12.2f %11.2fx\n", scalar[i].name, scalar[i].time_us,
                 rvv[0][i].time_us, rvv[1][i].time_us, rvv[2][i].time_us, speedup);
     }
     double os = (total_rvv512 > 0.0) ? (total_scalar / total_rvv512) : 0.0;
-    fprintf(f, "%-20s %12.2f %12s %12s %12.2f %11.2fx\n", "TOTAL", total_scalar, "-", "-",
+    fprintf(f, "%-30s %12.2f %12s %12s %12.2f %11.2fx\n", "TOTAL", total_scalar, "-", "-",
             total_rvv512, os);
     fclose(f);
     printf("   > RVV speedup table saved -> %s\n", out_path);
