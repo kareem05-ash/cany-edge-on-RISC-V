@@ -23,6 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include "gaussian.h"
+#include "tools.h"
 #include "mag_dir.h"
 #include "sobel.h"
 #include <cassert>
