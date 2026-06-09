@@ -258,7 +258,9 @@ jobs:
             -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static \
             -Iinclude \
             src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-            src/mag_dir.cpp tests/integ/test_rvv_equiv.cpp \
+            src/mag_dir.cpp tools/cpp/gen_imgs.cpp \
+            src/gaussian_rvv.cpp src/sobel_rvv.cpp \
+            tests/integ/test_rvv_equiv.cpp \
             -o build/riscv/test_rvv_equiv \
         )
 

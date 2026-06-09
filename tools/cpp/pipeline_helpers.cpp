@@ -10,6 +10,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifdef __riscv
+#include "gaussian_rvv.h"
+#include "sobel_rvv.h"
+#endif
 
 // ====================================================================================================
 // run_pipeline()
@@ -141,12 +145,6 @@ void free_pipeline_outputs(PipelineOutputs &p) {
     p.out_refined = nullptr;
 }
 
-
-#ifdef __riscv
-#include "gaussian_rvv.h"
-#include "sobel_rvv.h"
-#endif
-
 void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
                       TimingResult results[7], PipelineOutputs &out) {
     Timer t;
@@ -155,7 +153,11 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     Image *blurred = new Image(W, H);
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
+#ifdef __riscv
+        gaussian_blur_rvv(src, *blurred);
+#else
         gaussian_blur_padded(src, *blurred);
+#endif
     results[0].name    = "Gaussian (RVV)";
     results[0].time_us = timer_stop(&t) / n_iter;
 
@@ -164,7 +166,11 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     int16_t *Gy = new int16_t[W * H];
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
+#ifdef __riscv
+        sobel_rvv(*blurred, Gx, Gy);
+#else
         sobel(*blurred, Gx, Gy);
+#endif
     results[1].name    = "Sobel gradient (RVV)";
     results[1].time_us = timer_stop(&t) / n_iter;
 
@@ -226,41 +232,4 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     delete[] nms_out;
     delete[] dthr_out;
 }
-
-// ====================================================================================================
-// save_outputs() — host only
-// ====================================================================================================
-#ifndef __riscv
-void save_outputs(const char *img_name, int W, int H, const char *suffix, const Image &src,
-                  const Image &blurred, const uint8_t *mag, const uint8_t *out_refined) {
-    char path[512];
-
-    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_src.raw", img_name, W, H, suffix);
-    save_img(path, src);
-    printf("    > Saved: %s\n", path);
-
-    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_blurred.raw", img_name, W, H, suffix);
-    save_img(path, blurred);
-    printf("    > Saved: %s\n", path);
-
-    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_mag.raw", img_name, W, H, suffix);
-    save_raw_u8(path, mag, W, H);
-    printf("    > Saved: %s\n", path);
-
-    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_refined.raw", img_name, W, H, suffix);
-    save_raw_u8(path, out_refined, W, H);
-    printf("    > Saved: %s\n", path);
-}
-#endif // __riscv
-
-// ====================================================================================================
-// free_pipeline_outputs()
-// ====================================================================================================
-void free_pipeline_outputs(PipelineOutputs &p) {
-    delete p.blurred;
-    delete[] p.mag;
-    delete[] p.out_refined;
-    p.blurred    = nullptr;
-    p.mag        = nullptr;
-    p.out_refined = nullptr;
 }

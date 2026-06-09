@@ -334,7 +334,9 @@ test: test_img_io test_gaussian test_gaussian_rvv test_sobel \
 # PHASE 3 — QEMU-side RVV equivalence test
 # ===========================================================================================
 $(BLD_RV)/test_rvv_equiv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-                           src/mag_dir.cpp $(INTEG_TEST_DIR)/test_rvv_equiv.cpp
+                           src/mag_dir.cpp tools/cpp/gen_imgs.cpp \
+                           src/gaussian_rvv.cpp src/sobel_rvv.cpp \
+                           $(INTEG_TEST_DIR)/test_rvv_equiv.cpp
 	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
 
 test_rvv_equiv: $(BLD_RV)/test_rvv_equiv
