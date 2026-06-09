@@ -67,6 +67,8 @@ PIPELINE    := src/img_io.cpp              \
                tools/cpp/gen_imgs.cpp      \
                tools/cpp/img_utils.cpp     \
                tools/cpp/report.cpp        \
+               src/gaussian_rvv.cpp        \
+               src/sobel_rvv.cpp           \
                tools/cpp/pipeline_helpers.cpp
 
 # ─── Ensure output directories exist ─────────────────────────────────────────
