@@ -223,17 +223,17 @@ void sobel_rvv(const Image &src, int16_t *Gx, int16_t *Gy)
             // Result type is i16m2 because widening doubles LMUL (1→2).
             // All arithmetic below operates on i16m2 — 16-bit signed.
 
-            vint16m2_t al16 = __riscv_vwcvtu_x_x_v_i16m2(a_left,   vl); // [widen u8m1→i16m2: above_left]
-            vint16m2_t ac16 = __riscv_vwcvtu_x_x_v_i16m2(a_center, vl); // [widen u8m1→i16m2: above_center]
-            vint16m2_t ar16 = __riscv_vwcvtu_x_x_v_i16m2(a_right,  vl); // [widen u8m1→i16m2: above_right]
+            vuint16m2_t al16_u = __riscv_vwcvtu_x_x_v_u16m2(a_left,   vl); vint16m2_t al16 = __riscv_vreinterpret_v_u16m2_i16m2(al16_u); // [widen u8m1→i16m2: above_left]
+            vuint16m2_t ac16_u = __riscv_vwcvtu_x_x_v_u16m2(a_center, vl); vint16m2_t ac16 = __riscv_vreinterpret_v_u16m2_i16m2(ac16_u); // [widen u8m1→i16m2: above_center]
+            vuint16m2_t ar16_u = __riscv_vwcvtu_x_x_v_u16m2(a_right,  vl); vint16m2_t ar16 = __riscv_vreinterpret_v_u16m2_i16m2(ar16_u); // [widen u8m1→i16m2: above_right]
 
-            vint16m2_t cl16 = __riscv_vwcvtu_x_x_v_i16m2(c_left,   vl); // [widen u8m1→i16m2: curr_left]
-            vint16m2_t cr16 = __riscv_vwcvtu_x_x_v_i16m2(c_right,  vl); // [widen u8m1→i16m2: curr_right]
-            vint16m2_t cc16 = __riscv_vwcvtu_x_x_v_i16m2(c_center, vl); // [widen u8m1→i16m2: curr_center]
+            vuint16m2_t cl16_u = __riscv_vwcvtu_x_x_v_u16m2(c_left,   vl); vint16m2_t cl16 = __riscv_vreinterpret_v_u16m2_i16m2(cl16_u); // [widen u8m1→i16m2: curr_left]
+            vuint16m2_t cr16_u = __riscv_vwcvtu_x_x_v_u16m2(c_right,  vl); vint16m2_t cr16 = __riscv_vreinterpret_v_u16m2_i16m2(cr16_u); // [widen u8m1→i16m2: curr_right]
+            vuint16m2_t cc16_u = __riscv_vwcvtu_x_x_v_u16m2(c_center, vl); vint16m2_t cc16 = __riscv_vreinterpret_v_u16m2_i16m2(cc16_u); // [widen u8m1→i16m2: curr_center]
 
-            vint16m2_t bl16 = __riscv_vwcvtu_x_x_v_i16m2(b_left,   vl); // [widen u8m1→i16m2: below_left]
-            vint16m2_t bc16 = __riscv_vwcvtu_x_x_v_i16m2(b_center, vl); // [widen u8m1→i16m2: below_center]
-            vint16m2_t br16 = __riscv_vwcvtu_x_x_v_i16m2(b_right,  vl); // [widen u8m1→i16m2: below_right]
+            vuint16m2_t bl16_u = __riscv_vwcvtu_x_x_v_u16m2(b_left,   vl); vint16m2_t bl16 = __riscv_vreinterpret_v_u16m2_i16m2(bl16_u); // [widen u8m1→i16m2: below_left]
+            vuint16m2_t bc16_u = __riscv_vwcvtu_x_x_v_u16m2(b_center, vl); vint16m2_t bc16 = __riscv_vreinterpret_v_u16m2_i16m2(bc16_u); // [widen u8m1→i16m2: below_center]
+            vuint16m2_t br16_u = __riscv_vwcvtu_x_x_v_u16m2(b_right,  vl); vint16m2_t br16 = __riscv_vreinterpret_v_u16m2_i16m2(br16_u); // [widen u8m1→i16m2: below_right]
 
             // ── Compute Gx ────────────────────────────────────────────
             //
