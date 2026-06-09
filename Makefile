@@ -285,7 +285,7 @@ $^ -o $(BLD_HOST)/test_gaussian \
 $(GTEST_LINK)
 	./$(BLD_HOST)/test_gaussian
 
-test_gaussian_rvv: $(COMMON) src/gaussian.cpp src/gaussian_rvv.cpp tests/test_gaussian_rvv.cpp
+test_gaussian_rvv: $(COMMON) src/gaussian.cpp src/gaussian_rvv.cpp tests/unit/test_gaussian_rvv.cpp
 	$(HOST_CXX) $(HOST_FLAGS) \
 -I$(INC_DIR) -I$(GTEST_INC) \
 -L$(GTEST_LIB) \
