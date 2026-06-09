@@ -232,4 +232,3 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     delete[] nms_out;
     delete[] dthr_out;
 }
-}
