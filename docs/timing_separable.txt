@@ -1,0 +1,10 @@
+Stage                                       Time (us)    % Total
+-----                                       ---------    -------
+1) Gaussian (separable)                       2586.87      28.0%
+2) Sobel gradient                             4280.86      46.4%
+3) Magnitude (L1)                              828.78       9.0%
+4) Direction                                   341.78       3.7%
+5) Non-Maximum Suppression                     629.64       6.8%
+6) Double Thresholding                         151.09       1.6%
+7) Hysteresis                                  407.74       4.4%
+TOTAL                                         9226.74     100.0%

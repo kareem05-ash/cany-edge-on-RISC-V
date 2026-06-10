@@ -1,0 +1,10 @@
+Stage                                       Time (us)    % Total
+-----                                       ---------    -------
+1) Gaussian (RVV)                            27645.81      48.1%
+2) Sobel gradient (RVV)                      12039.60      21.0%
+3) Magnitude (scalar)                         9115.98      15.9%
+4) Direction (scalar)                         1224.76       2.1%
+5) Non-Maximum Suppression (scalar)           1667.30       2.9%
+6) Double Thresholding (scalar)                704.47       1.2%
+7) Hysteresis (scalar)                        5053.33       8.8%
+TOTAL                                        57451.25     100.0%

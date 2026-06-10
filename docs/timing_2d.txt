@@ -1,0 +1,10 @@
+Stage                                       Time (us)    % Total
+-----                                       ---------    -------
+1) Gaussian (2D kernel)                       8017.19      56.2%
+2) Sobel gradient                             4053.11      28.4%
+3) Magnitude (L1)                              731.67       5.1%
+4) Direction                                   323.61       2.3%
+5) Non-Maximum Suppression                     586.56       4.1%
+6) Double Thresholding                         144.37       1.0%
+7) Hysteresis                                  397.91       2.8%
+TOTAL                                        14254.42     100.0%

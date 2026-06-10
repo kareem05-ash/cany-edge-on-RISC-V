@@ -1,0 +1,19 @@
+=== LMUL Sweep — Gaussian (VLEN=256) ===
+
+--- LMUL=m1 ---
+Stage                                  Time (us)
+-----                                  ---------
+Gaussian RVV (m1)                      32194.12
+
+
+--- LMUL=m2 ---
+Stage                                  Time (us)
+-----                                  ---------
+Gaussian RVV (m2)                      26065.56
+
+
+--- LMUL=m4 ---
+Stage                                  Time (us)
+-----                                  ---------
+Gaussian RVV (m4)                      26612.24
+
