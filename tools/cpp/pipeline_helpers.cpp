@@ -1,3 +1,4 @@
+#include "mag_dir_rvv.h"
 #include "edge_refinement.h"
 #include "gaussian.h"
 #include "img_io.h"
@@ -166,20 +167,24 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     int16_t *Gy = new int16_t[W * H];
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
-#ifdef __riscv
+    #ifdef __riscv
         sobel_rvv(*blurred, Gx, Gy);
-#else
+    #else
         sobel(*blurred, Gx, Gy);
-#endif
+    #endif
     results[1].name    = "Sobel gradient (RVV)";
     results[1].time_us = timer_stop(&t) / n_iter;
 
-    // ── [Stage 2] Magnitude — scalar (RVV not applied) ────────────────────
+    // ── [Stage 2] Magnitude (RVV L1) ─────────────────────────────────────
     uint8_t *mag = new uint8_t[W * H];
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
+    #ifdef __riscv
+        compute_magnitude_rvv(Gx, Gy, mag, W, H);
+    #else
         compute_magnitude(Gx, Gy, mag, W, H, MagMethod::L1);
-    results[2].name    = "Magnitude (scalar)";
+    #endif
+    results[2].name    = "Magnitude (RVV L1)";
     results[2].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 3] Direction — scalar (not hot) ────────────────────────────

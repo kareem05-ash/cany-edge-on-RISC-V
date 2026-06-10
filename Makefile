@@ -56,6 +56,7 @@ PIPELINE := src/img_io.cpp              \
             src/gaussian.cpp            \
             src/sobel.cpp               \
             src/mag_dir.cpp             \
+            src/mag_dir_rvv.cpp         \
             src/edge_refinement.cpp     \
             src/gaussian_rvv.cpp        \
             src/sobel_rvv.cpp           \
@@ -228,8 +229,16 @@ test_edge_refinement: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
 		$^ -o $(BLD_HOST)/test_edge_refinement $(GTEST_LINK)
 	./$(BLD_HOST)/test_edge_refinement
 
+
+test_mag_dir_rvv: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+                  src/mag_dir.cpp src/mag_dir_rvv.cpp \
+                  $(UNIT_TEST_DIR)/test_mag_dir_rvv.cpp
+	$(HOST_CXX) $(HOST_FLAGS) -I$(INC_DIR) -I$(GTEST_INC) -L$(GTEST_LIB) \
+		$^ -o $(BLD_HOST)/test_mag_dir_rvv $(GTEST_LINK)
+	./$(BLD_HOST)/test_mag_dir_rvv
+	
 test: test_img_io test_gaussian test_gaussian_rvv test_sobel \
-      test_sobel_rvv test_mag_dir test_edge_refinement
+      test_sobel_rvv test_mag_dir test_mag_dir_rvv test_edge_refinement
 
 # ===========================================================================================
 # QEMU-SIDE EQUIVALENCE TEST (assert-based, no GoogleTest)
@@ -398,7 +407,8 @@ clean: clean_bin clean_imgs
         run_host run_target run_all                                   \
         verify_rvv                                                    \
         test test_img_io test_gaussian test_gaussian_rvv              \
-        test_sobel test_sobel_rvv test_mag_dir test_edge_refinement   \
+        test_sobel test_sobel_rvv test_mag_dir test_mag_dir_rvv       \
+        test_edge_refinement                                          \
         test_rvv_equiv                                                \
         _bench_all sweep autovec count_vec                            \
         vlen_sweep lmul_sweep                                         \
