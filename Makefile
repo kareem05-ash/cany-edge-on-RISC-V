@@ -82,39 +82,41 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "  ── Build & Run ──────────────────────────────────────────────────────"
-	@echo "  make run_host   [W=..] [H=..] [I=..]     : Run pipeline natively on host"
-	@echo "  make run_target [W=..] [H=..] [I=..]     : Run RISC-V binary under QEMU"
-	@echo "  make run_all    [W=..] [H=..] [I=..]     : Run QEMU at VLEN=128/256/512"
-	@echo "  make canny_rv                             : Build RISC-V binary (default config)"
+	@echo "  make run_host   	[W=..] [H=..] [I=..]    : Run pipeline natively on host"
+	@echo "  make run_target 	[W=..] [H=..] [I=..]    : Run RISC-V binary under QEMU"
+	@echo "  make run_target_rvv[W=..] [H=..] [I=..] 	: Run RVV pipeline (VLEN=...) + save timing/speedup"
+	@echo "  make lmul_sweep 	[W=..] [H=..] [I=..]    : LMUL sweep on RVV kernels"
+	@echo "  make run_all    	[W=..] [H=..] [I=..]    : Run QEMU at VLEN=128/256/512"
+	@echo "  make canny_rv                            	: Build RISC-V binary (default config)"
 	@echo ""
 	@echo "  ── Unit Tests (host, GoogleTest) ────────────────────────────────────"
-	@echo "  make test                                 : Run all unit + integration tests"
-	@echo "  make test_img_io                          : Test image I/O module"
-	@echo "  make test_gaussian                        : Test Gaussian filter (scalar)"
-	@echo "  make test_gaussian_rvv                    : Test RVV Gaussian kernel (LMUL=1/2/4 sweep)"
-	@echo "  make test_sobel                           : Test Sobel edge detection"
-	@echo "  make test_mag_dir                         : Test magnitude and direction"
-	@echo "  make test_sobel_rv                        : Test Sobel (integration)"
-	@echo "  make test_edge_refinement                 : Test NMS / thresholding / hysteresis"
+	@echo "  make test                                 	: Run all unit + integration tests"
+	@echo "  make test_img_io                          	: Test image I/O module"
+	@echo "  make test_gaussian                        	: Test Gaussian filter (scalar)"
+	@echo "  make test_gaussian_rvv                    	: Test RVV Gaussian kernel (LMUL=1/2/4 sweep)"
+	@echo "  make test_sobel                           	: Test Sobel edge detection"
+	@echo "  make test_mag_dir                         	: Test magnitude and direction"
+	@echo "  make test_sobel_rv                        	: Test Sobel (integration)"
+	@echo "  make test_edge_refinement                 	: Test NMS / thresholding / hysteresis"
 	@echo ""
 	@echo "  ── QEMU-side Tests ──────────────────────────────────────────────────"
-	@echo "  make test_rvv_equiv                       : RVV equivalence tests at VLEN=128/256/512"
-	@echo "  make verify_rvv                           : Phase 1 RVV toolchain smoke test"
+	@echo "  make test_rvv_equiv                       	: RVV equivalence tests at VLEN=128/256/512"
+	@echo "  make verify_rvv                           	: Phase 1 RVV toolchain smoke test"
 	@echo ""
 	@echo "  ── Optimization & Profiling ─────────────────────────────────────────"
-	@echo "  make sweep                                : Benchmark -O0/O2/O3/Os/Ofast on QEMU"
-	@echo "  make autovec                              : Generate auto-vectorization report"
-	@echo "  make count_vec_instructions               : Count RVV vset* instructions in binaries"
+	@echo "  make sweep                                	: Benchmark -O0/O2/O3/Os/Ofast on QEMU"
+	@echo "  make autovec                              	: Generate auto-vectorization report"
+	@echo "  make count_vec_instructions               	: Count RVV vset* instructions in binaries"
 	@echo ""
 	@echo "  ── Utilities ────────────────────────────────────────────────────────"
-	@echo "  make format                               : Auto-format source with clang-format"
-	@echo "  make package                              : Create project ZIP archive"
-	@echo "  make docs                                 : Generate Doxygen HTML + LaTeX docs"
-	@echo "  make clean                                : Remove build artifacts"
-	@echo "  make clean_imgs                           : Remove generated images"
-	@echo "  make clean_docs                           : Remove generated docs/reports"
-	@echo "  make clean_all                            : Clean everything"
-	@echo "  make help                                 : Show this help message"
+	@echo "  make format                               	: Auto-format source with clang-format"
+	@echo "  make package                              	: Create project ZIP archive"
+	@echo "  make docs                                 	: Generate Doxygen HTML + LaTeX docs"
+	@echo "  make clean                                	: Remove build artifacts"
+	@echo "  make clean_imgs                           	: Remove generated images"
+	@echo "  make clean_docs                           	: Remove generated docs/reports"
+	@echo "  make clean_all                            	: Clean everything"
+	@echo "  make help                                 	: Show this help message"
 	@echo ""
 
 # ===========================================================================================
@@ -172,7 +174,27 @@ canny_rv: $(BLD_RV)/canny
 run_target: $(BLD_RV)/canny
 	@echo "=== Running on RISC-V target (VLEN=$(VLEN)) ==="
 	qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
-$(BLD_RV)/canny $(W) $(H) $(I)
+		$(BLD_RV)/canny $(W) $(H) $(I)
+
+# ── RVV pipeline run: capture stdout on host, extract timing table ────────────
+# QEMU stdout is captured by the host shell via $(...) — the binary itself never
+# touches a file.  awk extracts lines between the Step 5 banner and the separator
+# line, then the host writes docs/timing_rvv.txt and docs/speedup_rvv.txt.
+run_target_rvv: $(BLD_RV)/canny
+	@echo "=== Running RVV pipeline (VLEN=$(VLEN)) ==="
+	@mkdir -p $(DOCS_DIR)
+	@OUTPUT=$$(qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
+		$(BLD_RV)/canny $(W) $(H) $(I)); \
+	echo "$$OUTPUT"; \
+	echo "$$OUTPUT" | awk \
+		'/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		> $(DOCS_DIR)/timing_rvv.txt; \
+	echo "$$OUTPUT" | awk \
+		'/^Stage[[:space:]]+Scalar/{p=1} p{print} p && /^TOTAL/{exit}' \
+		> $(DOCS_DIR)/speedup_rvv.txt; \
+	echo ""; \
+	echo "   > Timing table saved -> $(DOCS_DIR)/timing_rvv.txt"; \
+	echo "   > Speedup table saved -> $(DOCS_DIR)/speedup_rvv.txt"
 
 run_all: $(BLD_RV)/canny
 	@echo "=== VLEN=128 ===" && \
@@ -181,6 +203,21 @@ run_all: $(BLD_RV)/canny
 	qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/canny $(W) $(H) $(I)
 	@echo "=== VLEN=512 ===" && \
 	qemu-riscv64 -cpu rv64,v=true,vlen=512 $(BLD_RV)/canny $(W) $(H) $(I)
+
+# ── VLEN sweep: run RVV pipeline at all three VLENs, capture total per run ───
+vlen_sweep: $(BLD_RV)/canny
+	@echo "=== VLEN Sweep — RVV Pipeline ===" | tee  $(DOCS_DIR)/vlen_sweep.txt
+	@for VLEN in 128 256 512; do \
+		echo "" | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
+		echo "VLEN=$$VLEN" | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
+		qemu-riscv64 -cpu rv64,v=true,vlen=$$VLEN \
+			$(BLD_RV)/canny $(W) $(H) $(I) \
+		| grep "^TOTAL" | tail -1 \
+		| awk '{print $$1, $$2}' \
+		| tee -a $(DOCS_DIR)/vlen_sweep.txt; \
+	done
+	@echo ""
+	@echo "VLEN sweep complete -> $(DOCS_DIR)/vlen_sweep.txt"
 
 # ===========================================================================================
 # HOST
@@ -388,4 +425,5 @@ clean_all: clean clean_imgs clean_docs
         test_sobel test_mag_dir test_sobel_rv                   \
         test_edge_refinement test_rvv_equiv test                \
         clean clean_imgs clean_docs clean_all                   \
-	format package docs help
+		run_target_rvv vlen_sweep								\
+		format package docs help
