@@ -114,7 +114,7 @@ help:
 	@echo "  package               Create project ZIP archive"
 	@echo "  clean_bin             Remove build artifacts"
 	@echo "  clean_imgs            Remove generated images"
-	@echo "  clean_docs            Remove generated docs/reports"
+# 	@echo "  clean_docs            Remove generated docs/reports"
 	@echo "  clean                 Clean everything"
 	@echo ""
 	@echo "  Image index I: 0=white_square 1=circle 2=vertical_edge"
@@ -386,10 +386,10 @@ clean_bin:
 clean_imgs:
 	rm -f $(IMGS_DIR)/*.raw
 
-clean_docs:
-	rm -f $(DOCS_DIR)/*.txt $(DOCS_DIR)/*.png
+# clean_docs:
+# 	rm -f $(DOCS_DIR)/*.txt $(DOCS_DIR)/*.png
 
-clean: clean_bin clean_imgs clean_docs
+clean: clean_bin clean_imgs
 
 # ===========================================================================================
 # PHONY
