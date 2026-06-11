@@ -422,7 +422,7 @@ package:
 	@command -v zip >/dev/null 2>&1 || { echo "Error: zip not installed. Run: sudo apt install zip"; exit 1; }
 	@[ -f canny-edge-riscv.zip ] && rm -f canny-edge-riscv.zip || true
 	@zip -r canny-edge-riscv.zip ./ \
-		-x "*__pycache__*" "build/*" "docs/*" "imgs/*" ".vscode/*" ".git/*"
+		-x "*__pycache__*" "build/*" "docs/*" "imgs/*" ".vscode/*" ".git/*" ".clang-format" "LICENSE" "Doxyfile"
 	@echo "Created: canny-edge-riscv.zip"
 
 # ===========================================================================================
