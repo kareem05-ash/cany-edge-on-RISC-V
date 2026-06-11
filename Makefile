@@ -54,12 +54,12 @@ GTEST_RV_FLAGS   := -DGTEST_HAS_PTHREAD=0 -DGTEST_HAS_FILE_SYSTEM=0
 # ─── Pipeline sources ────────────────────────────────────────────────────────
 PIPELINE := src/img_io.cpp              \
             src/gaussian.cpp            \
+            src/gaussian_rvv.cpp        \
             src/sobel.cpp               \
+            src/sobel_rvv.cpp           \
             src/mag_dir.cpp             \
             src/mag_dir_rvv.cpp         \
             src/edge_refinement.cpp     \
-            src/gaussian_rvv.cpp        \
-            src/sobel_rvv.cpp           \
             tools/cpp/gen_imgs.cpp      \
             tools/cpp/img_utils.cpp     \
             tools/cpp/report.cpp        \
@@ -76,51 +76,67 @@ $(shell mkdir -p $(BLD_HOST) $(BLD_RV) $(DOCS_DIR) $(IMGS_DIR))
 # ===========================================================================================
 # HELP
 # ===========================================================================================
+
 help:
-	@echo ""
-	@echo "Usage: make <target> [W=<width>] [H=<height>] [I=<image>] [VLEN=<128|256|512>]"
-	@echo ""
-	@echo "  ── Run ──────────────────────────────────────────────────────────────"
-	@echo "  run_host              Run full pipeline natively (stdout only)"
-	@echo "  run_target            Cross-compile + run on QEMU; save docs/*_target.txt"
-	@echo "  run_all               Run QEMU at VLEN=128, 256, 512 (stdout only)"
-	@echo ""
-	@echo "  ── Build only ───────────────────────────────────────────────────────"
-	@echo "  canny_rv              Cross-compile RISC-V pipeline binary"
-	@echo "  verify_rvv            Phase 1 toolchain smoke test at VLEN=128/256/512"
-	@echo ""
-	@echo "  ── Host unit tests (GoogleTest) ─────────────────────────────────────"
-	@echo "  test                  Run all host-side unit tests"
-	@echo "  test_img_io           Image I/O module"
-	@echo "  test_gaussian         Gaussian filter (scalar)"
-	@echo "  test_gaussian_rvv     Gaussian RVV kernel"
-	@echo "  test_sobel            Sobel edge detection (scalar)"
-	@echo "  test_sobel_rvv        Sobel RVV kernel"
-	@echo "  test_mag_dir          Gradient magnitude and direction"
-	@echo "  test_edge_refinement  NMS, double thresholding, hysteresis"
-	@echo ""
-	@echo "  ── QEMU-side tests ──────────────────────────────────────────────────"
-	@echo "  test_rvv_equiv        RVV equivalence vs scalar at VLEN=128/256/512"
-	@echo ""
-	@echo "  ── Optimization & profiling ─────────────────────────────────────────"
-	@echo "  sweep                 Build -O0/O2/O3/Os/Ofast; save docs/bench_results.txt"
-	@echo "  autovec               Auto-vectorization report -> docs/autovec_report.txt"
-	@echo "  count_vec             Count RVV vset* instructions in -O0 and -O3 binaries"
-	@echo "  vlen_sweep            Full stage breakdown at VLEN=128/256/512 -> docs/vlen_sweep.txt"
-	@echo "  lmul_sweep            Gaussian timing at LMUL=m1/m2/m4 -> docs/lmul_gaussian.txt"
-	@echo ""
-	@echo "  ── Utilities ────────────────────────────────────────────────────────"
-	@echo "  format                Auto-format all sources with clang-format"
-	@echo "  docs                  Generate Doxygen HTML + LaTeX"
-	@echo "  package               Create project ZIP archive"
-	@echo "  clean_bin             Remove build artifacts"
-	@echo "  clean_imgs            Remove generated images"
-# 	@echo "  clean_docs            Remove generated docs/reports"
-	@echo "  clean                 Clean everything"
-	@echo ""
-	@echo "  Image index I: 0=white_square 1=circle 2=vertical_edge"
-	@echo "                 3=horizontal_edge 4=checkerboard 5=impulse 6=gradient_ramp"
-	@echo ""
+		@echo ""
+		@echo "  Canny Edge Detection on RISC-V — Makefile Targets"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "Target" "Description"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make help"                 "Shows this message and exit"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make run_host"             "Run full pipeline natively (stdout only)"
+		@printf "  %-28s %s\n" "make run_target"           "Cross-compile + run on QEMU; save docs/*_target.txt"
+		@printf "  %-28s %s\n" "make run_all"              "Run QEMU at VLEN=128, 256, 512 (stdout only)"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make canny_rv"             "Cross-compile RISC-V pipeline binary"
+		@printf "  %-28s %s\n" "make verify_rvv"           "Phase 1 toolchain smoke test at VLEN=128/256/512"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make test"                 "Run all host-side unit tests"
+		@printf "  %-28s %s\n" "make test_img_io"          "Image I/O module"
+		@printf "  %-28s %s\n" "make test_gaussian"        "Gaussian filter (scalar)"
+		@printf "  %-28s %s\n" "make test_gaussian_rvv"    "Gaussian RVV kernel"
+		@printf "  %-28s %s\n" "make test_sobel"           "Sobel edge detection (scalar)"
+		@printf "  %-28s %s\n" "make test_sobel_rvv"       "Sobel RVV kernel"
+		@printf "  %-28s %s\n" "make test_mag_dir"         "Gradient magnitude and direction (scalar)"
+		@printf "  %-28s %s\n" "make test_mag_dir_rvv"     "Gradient magnitude RVV kernel"
+		@printf "  %-28s %s\n" "make test_edge_refinement" "NMS, double thresholding, hysteresis"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make test_rvv_equiv"       "RVV equivalence vs scalar at VLEN=128/256/512"
+		@printf "  %-28s %s\n" "make test_vlen_sweep"      "RVV equivalence vs scalar at VLEN=128/256/512"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make sweep"                "Build -O0/O2/O3/Os/Ofast; save docs/bench_results.txt"
+		@printf "  %-28s %s\n" "make autovec"              "Auto-vectorization report -> docs/autovec_report.txt"
+		@printf "  %-28s %s\n" "make count_vec"            "Count RVV vset* instructions in -O0 and -O3 binaries"
+		@printf "  %-28s %s\n" "make vlen_sweep"           "Full stage breakdown at VLEN=128/256/512 -> docs/vlen_sweep.txt"
+		@printf "  %-28s %s\n" "make lmul_sweep"           "Gaussian timing at LMUL=m1/m2/m4 -> docs/lmul_gaussian.txt"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make format"               "Auto-format all sources with clang-format"
+		@printf "  %-28s %s\n" "make docs"                 "Generate Doxygen HTML + LaTeX"
+		@printf "  %-28s %s\n" "make package"              "Create project ZIP archive"
+		@printf "  %-28s %s\n" "make clean_bin"            "Remove build artifacts"
+		@printf "  %-28s %s\n" "make clean_imgs"           "Remove generated raw images"
+		@printf "  %-28s %s\n" "make clean"                "Clean everything"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@printf "  %-28s %s\n" "make setup"                "Runs scripts/setup.sh"
+		@printf "  %-28s %s\n" "make verify"               "Runs scripts/verify.sh"
+		@echo "  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+		@echo ""
+		@echo "  Usage:  make <target> [W=<width>] [H=<height>] [I=<image>] [VLEN=<128|256|512>]"
+		@echo ""
+		@echo "  Image index I:  0=white_square  1=circle        2=vertical_edge"
+		@echo "                  3=horizontal_edge               4=checkerboard"
+		@echo "                  5=impulse       6=gradient_ramp"
+		@echo ""
+		@echo "  Typical workflow:"
+		@echo "    1.  make setup                # setup environment (first time only)"
+		@echo "    2.  make verify               # verify environment"
+		@echo "    3.  make verify_rvv           # confirm toolchain + QEMU are working"
+		@echo "    4.  make test                 # run all host-side unit tests"
+		@echo "    5.  make run_target           # build and run full pipeline on QEMU"
+		@echo "    6.  make sweep                # compiler optimisation benchmark"
+		@echo "    7.  make vlen_sweep           # compare VLEN=128/256/512 performance"
+		@echo ""
 
 # ===========================================================================================
 # BUILD — HOST
@@ -370,12 +386,7 @@ lmul_sweep: $(BLD_RV)/lmul_sweep
 #============================================================================================
 # test_vlen_sweep
 #============================================================================================
-$(BLD_RV)/test_vlen_sweep: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-                            src/gaussian_rvv.cpp src/sobel_rvv.cpp \
-                            src/mag_dir.cpp src/edge_refinement.cpp \
-                            tools/cpp/gen_imgs.cpp tools/cpp/img_utils.cpp \
-                            tools/cpp/pipeline_helpers.cpp \
-                            tools/cpp/report.cpp \
+$(BLD_RV)/test_vlen_sweep: $(PIPELINE) \
                             tests/integ/test_vlen_sweep.cpp
 	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
 
@@ -388,6 +399,13 @@ test_vlen_sweep: $(BLD_RV)/test_vlen_sweep
 	done
 	@echo ""
 	@echo "All VLEN values passed. Pipeline is vector-length-agnostic."
+# ===========================================================================================
+# SCRIPTS
+# ===========================================================================================
+setup:
+	chmoc +x scripts/setup.sh && ./scripts/setup.sh
+verify:
+	chmoc +x scripts/verify.sh && ./scripts/verify.sh
 # ===========================================================================================
 # UTILITIES
 # ===========================================================================================
@@ -424,14 +442,15 @@ clean: clean_bin clean_imgs
 # ===========================================================================================
 # PHONY
 # ===========================================================================================
-.PHONY: help canny_rv                                                 \
-        run_host run_target run_all                                   \
-        verify_rvv                                                    \
-        test test_img_io test_gaussian test_gaussian_rvv              \
-        test_sobel test_sobel_rvv test_mag_dir test_mag_dir_rvv       \
-        test_edge_refinement                                          \
-        test_rvv_equiv                                                \
-        _bench_all sweep autovec count_vec                            \
-        vlen_sweep lmul_sweep                                         \
-        format docs package                                           \
-        clean_bin clean_imgs clean_docs clean
+.PHONY: help canny_rv											\
+        run_host run_target run_all								\
+        verify_rvv												\
+        test test_img_io test_gaussian test_gaussian_rvv		\
+        test_sobel test_sobel_rvv test_mag_dir test_mag_dir_rvv	\
+        test_edge_refinement test_vlen_sweep					\
+        test_rvv_equiv											\
+        _bench_all sweep autovec count_vec						\
+        vlen_sweep lmul_sweep									\
+        format docs package										\
+        clean_bin clean_imgs clean								\
+		setup verify

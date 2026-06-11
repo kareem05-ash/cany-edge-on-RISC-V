@@ -6,8 +6,8 @@ build/riscv/*
 
 # Generated images & reports
 imgs/*.raw
-# docs/*.png
-# docs/*.txt
+docs/*.png
+docs/*.txt
 docs/doxygen/*
 
 # Object files
