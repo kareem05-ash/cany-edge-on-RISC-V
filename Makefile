@@ -367,6 +367,27 @@ lmul_sweep: $(BLD_RV)/lmul_sweep
 	@echo ""
 	@echo "LMUL sweep complete -> $(DOCS_DIR)/lmul_gaussian.txt"
 
+#============================================================================================
+# test_vlen_sweep
+#============================================================================================
+$(BLD_RV)/test_vlen_sweep: src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
+                            src/gaussian_rvv.cpp src/sobel_rvv.cpp \
+                            src/mag_dir.cpp src/edge_refinement.cpp \
+                            tools/cpp/gen_imgs.cpp tools/cpp/img_utils.cpp \
+                            tools/cpp/pipeline_helpers.cpp \
+                            tools/cpp/report.cpp \
+                            tests/integ/test_vlen_sweep.cpp
+	$(RV_CXX) $(RV_FLAGS) -I$(INC_DIR) $^ -o $@
+
+test_vlen_sweep: $(BLD_RV)/test_vlen_sweep
+	@echo "=== VLEN Sweep Correctness Test ==="
+	@for V in 128 256 512; do \
+		echo ""; \
+		echo "--- VLEN=$$V ---"; \
+		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/test_vlen_sweep || exit 1; \
+	done
+	@echo ""
+	@echo "All VLEN values passed. Pipeline is vector-length-agnostic."
 # ===========================================================================================
 # UTILITIES
 # ===========================================================================================
@@ -403,6 +424,7 @@ clean: clean_bin clean_imgs
 # ===========================================================================================
 # PHONY
 # ===========================================================================================
+<<<<<<< Updated upstream
 .PHONY: help canny_rv                                                \
         run_host run_target run_all                                   \
         verify_rvv                                                    \
@@ -414,3 +436,15 @@ clean: clean_bin clean_imgs
         vlen_sweep lmul_sweep                                         \
         format docs package                                           \
         clean_bin clean_imgs clean_docs clean
+=======
+.PHONY: all canny_rv                                            \
+        run_target run_host run_all                             \
+        bench_all sweep autovec count_vec_instructions          \
+        verify_rvv                                              \
+        test_img_io test_gaussian test_gaussian_rvv             \
+        test_sobel test_mag_dir test_sobel_rv                   \
+        test_edge_refinement test_rvv_equiv test                \
+		test_vlen_sweep											\
+        clean clean_imgs clean_docs clean_all                   \
+	format package docs help
+>>>>>>> Stashed changes
