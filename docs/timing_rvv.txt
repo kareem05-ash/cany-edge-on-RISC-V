@@ -1,0 +1,85 @@
+
+====================================================================================================
+ << Canny Edge Pipeline >>
+ >> Mode       : RISC-V Target (no file I/O)
+ >> Image      : white_square [I=0]
+ >> W x H      : 512 x 512
+ >> Iterations : 100
+====================================================================================================
+
+[Step 1] Generating source image ...
+   > Generated: white_square (512x512)
+
+[Step 2] Pipeline — 2D Gaussian kernel (100 iterations) ...
+
+
+Stage                             Time (us)    % Total
+-----                             ---------    -------
+1) Gaussian (2D kernel)           904408.48      96.7%
+2) Sobel gradient                  15081.55       1.6%
+3) Magnitude (L1)                   8571.17       0.9%
+4) Direction                        1191.50       0.1%
+5) Non-Maximum Suppression          1950.38       0.2%
+6) Double Thresholding               968.73       0.1%
+7) Hysteresis                       3547.21       0.4%
+TOTAL                             935719.01     100.0%
+
+
+>> Hotspot Analysis
+   Hotspot Stage : Gaussian (2D kernel)
+   Time          : 904408.48 us (96.7% of total)
+   Amdahl Ceiling: 29.89x max theoretical speedup
+   Recommendation: Optimize 'Gaussian (2D kernel)' first with RVV intrinsics
+
+----------------------------------------------------------------------------------------------------
+
+[Step 3] Pipeline — Separable Gaussian kernel (100 iterations) ...
+
+
+Stage                             Time (us)    % Total
+-----                             ---------    -------
+1) Gaussian (separable)            11563.77      27.1%
+2) Sobel gradient                  14817.44      34.8%
+3) Magnitude (L1)                   8483.91      19.9%
+4) Direction                        1212.37       2.8%
+5) Non-Maximum Suppression          1995.37       4.7%
+6) Double Thresholding               978.50       2.3%
+7) Hysteresis                       3560.35       8.4%
+TOTAL                              42611.71     100.0%
+
+
+>> Hotspot Analysis
+   Hotspot Stage : Sobel gradient
+   Time          : 14817.44 us (34.8% of total)
+   Amdahl Ceiling: 1.53x max theoretical speedup
+   Recommendation: Optimize 'Sobel gradient' first with RVV intrinsics
+
+----------------------------------------------------------------------------------------------------
+
+[Step 4] Pipeline — Padded Gaussian kernel (100 iterations) ...
+
+
+Stage                             Time (us)    % Total
+-----                             ---------    -------
+1) Gaussian (padded)              109961.05      78.1%
+2) Sobel gradient                  14778.30      10.5%
+3) Magnitude (L1)                   8423.59       6.0%
+4) Direction                        1196.53       0.8%
+5) Non-Maximum Suppression          1941.73       1.4%
+6) Double Thresholding               981.90       0.7%
+7) Hysteresis                       3558.85       2.5%
+TOTAL                             140841.94     100.0%
+
+
+>> Hotspot Analysis
+   Hotspot Stage : Gaussian (padded)
+   Time          : 109961.05 us (78.1% of total)
+   Amdahl Ceiling: 4.56x max theoretical speedup
+   Recommendation: Optimize 'Gaussian (padded)' first with RVV intrinsics
+
+----------------------------------------------------------------------------------------------------
+
+====================================================================================================
+ << Pipeline Complete >>
+====================================================================================================
+
