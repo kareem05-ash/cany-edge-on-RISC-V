@@ -424,8 +424,7 @@ clean: clean_bin clean_imgs
 # ===========================================================================================
 # PHONY
 # ===========================================================================================
-<<<<<<< Updated upstream
-.PHONY: help canny_rv                                                \
+.PHONY: help canny_rv                                                 \
         run_host run_target run_all                                   \
         verify_rvv                                                    \
         test test_img_io test_gaussian test_gaussian_rvv              \
@@ -436,15 +435,3 @@ clean: clean_bin clean_imgs
         vlen_sweep lmul_sweep                                         \
         format docs package                                           \
         clean_bin clean_imgs clean_docs clean
-=======
-.PHONY: all canny_rv                                            \
-        run_target run_host run_all                             \
-        bench_all sweep autovec count_vec_instructions          \
-        verify_rvv                                              \
-        test_img_io test_gaussian test_gaussian_rvv             \
-        test_sobel test_mag_dir test_sobel_rv                   \
-        test_edge_refinement test_rvv_equiv test                \
-		test_vlen_sweep											\
-        clean clean_imgs clean_docs clean_all                   \
-	format package docs help
->>>>>>> Stashed changes
