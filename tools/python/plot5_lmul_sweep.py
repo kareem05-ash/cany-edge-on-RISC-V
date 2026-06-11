@@ -1,66 +1,77 @@
-import os, re
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+#!/usr/bin/env python3
+"""
+plot5_lmul_sweep.py — LMUL sweep for Gaussian 5×5.
+Data source: docs/lmul_gaussian.txt
+"""
 
-COLOR_BARS = ["#4C72B0", "#55A868", "#DD8452"]
+import os
+import re
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 def parse_lmul_file(path):
-    if not os.path.isfile(path):
-        print("[plot5] WARNING: not found:", path)
+    if not os.path.exists(path):
+        print(f"[WARN] Missing file: {path}")
         return None
-    result   = {}
-    cur_lmul = None
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            s = line.strip()
-            m = re.match(r"---\s*LMUL=m(\d+)", s, re.IGNORECASE)
-            if m:
-                cur_lmul = int(m.group(1))
+    result = {}
+    with open(path, 'r') as f:
+        content = f.read()
+    blocks = re.findall(r'--- LMUL=m(\d+) ---(.*?)(?=--- LMUL=|$)', content, re.DOTALL)
+    for lmul_str, block in blocks:
+        lmul = int(lmul_str)
+        for line in block.strip().split('\n'):
+            line = line.strip()
+            if not line or line.startswith('-') or 'Stage' in line:
                 continue
-            if cur_lmul is None:
-                continue
-            # Match "Gaussian RVV (m1)   32194.12"
-            m2 = re.match(r"^(.+?)\s{2,}([\d]+\.[\d]+)", s)
-            if m2:
+            # FIXED: allow digits in stage name (e.g., "Gaussian RVV (m1)")
+            match = re.match(r'([A-Za-z\s\-\(\)0-9]+?)\s+([\d,]+\.\d+)', line)
+            if match:
+                time_str = match.group(2).replace(',', '')
                 try:
-                    result[cur_lmul] = float(m2.group(2))
-                    cur_lmul = None
+                    result[lmul] = float(time_str)
                 except ValueError:
                     pass
     return result if result else None
 
+
 def generate(out_dir="docs", lmul_file="docs/lmul_gaussian.txt"):
     data = parse_lmul_file(lmul_file)
     if data is None:
-        print("[plot5] Skipping: missing data.")
+        print("[SKIP] plot5_lmul_sweep: missing input file")
         return
-    keys   = sorted(data.keys())
-    times  = [data[k] for k in keys]
-    labels = [f"LMUL={k}" for k in keys]
-    best   = times.index(min(times))
-    fig, ax = plt.subplots(figsize=(7, 5))
-    bars = ax.bar(labels, times, color=COLOR_BARS[:len(keys)], edgecolor="black", linewidth=0.7)
-    for bar, t in zip(bars, times):
-        ax.text(bar.get_x() + bar.get_width()/2,
-                bar.get_height() + max(times)*0.01,
-                f"{t:.1f} us", ha="center", va="bottom", fontsize=10)
-    ax.text(bars[best].get_x() + bars[best].get_width()/2,
-            bars[best].get_height()/2,
-            "* best", ha="center", va="center",
-            fontsize=12, fontweight="bold", color="white")
-    ax.set_xlabel("LMUL Setting")
-    ax.set_ylabel("Gaussian Blur Time (us)")
-    ax.set_title("Gaussian 5x5 - LMUL Sweep (VLEN=256)")
-    ax.grid(axis="y", linestyle="--", alpha=0.5)
-    ax.text(0.5, -0.18,
-            "LMUL=2 uses i32m8 accumulator (max LMUL). LMUL=4 -> register spill.",
-            ha="center", transform=ax.transAxes, fontsize=9, style="italic")
-    plt.tight_layout()
-    out = os.path.join(out_dir, "lmul_sweep.png")
-    plt.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close()
-    print("[plot5] Saved:", out)
 
-if __name__ == "__main__":
-    generate()
+    lmuls = sorted(data.keys())
+    times = [data[l] for l in lmuls]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bar_colors = ['#4C72B0', '#55A868', '#DD8452'][:len(lmuls)]
+    bars = ax.bar([f'LMUL={l}' for l in lmuls], times, color=bar_colors)
+
+    for bar, t in zip(bars, times):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{t:.1f} µs', ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+    min_idx = times.index(min(times))
+    bars[min_idx].set_edgecolor('gold')
+    bars[min_idx].set_linewidth(3)
+    ax.text(bars[min_idx].get_x() + bars[min_idx].get_width()/2., times[min_idx] * 1.15,
+            '★ BEST', ha='center', va='bottom', fontsize=12, color='gold', fontweight='bold')
+
+    ax.set_xlabel('LMUL Setting', fontsize=12)
+    ax.set_ylabel('Gaussian Blur Time (µs)', fontsize=12)
+    ax.set_title('Gaussian 5×5 — LMUL Sweep (VLEN=256)', fontsize=14, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+
+    ax.text(0.5, -0.15,
+            'LMUL=2 uses i32m8 accumulator (max LMUL). LMUL=4 → register spill.',
+            transform=ax.transAxes, ha='center', fontsize=9, style='italic')
+
+    plt.tight_layout()
+    out_path = os.path.join(out_dir, "lmul_sweep.png")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+    print(f"[OK] plot5_lmul_sweep: saved {out_path}")

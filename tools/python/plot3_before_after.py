@@ -1,90 +1,96 @@
+#!/usr/bin/env python3
+"""
+plot3_before_after.py — Hot stages: Before (Scalar) vs After (RVV)
+
+Data source: docs/timing_padded.txt (scalar) and docs/timing_rvv.txt (RVV)
+Output: {out_dir}/before_after.png
+"""
+
 import os
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
-STAGE_MAP = {
-    "gaussian": "Gaussian",
-    "sobel":    "Sobel",
-    "magnitude":"Magnitude",
-    "direction":"Direction",
-    "non-max":  "NMS",
-    "nms":      "NMS",
-    "suppression": "NMS",
-    "double":   "DblThresh",
-    "threshold":"DblThresh",
-    "hysteresis":"Hysteresis",
-}
 
-def _map_stage(raw):
-    r = raw.lower()
-    for key, name in STAGE_MAP.items():
-        if key in r:
-            return name
-    return None
+HOT_STAGES = ["Gaussian", "Sobel", "Magnitude"]
 
-def parse_timing_file(path):
-    if not os.path.isfile(path):
-        print(f"WARNING: not found: {path}")
+
+def parse_timing_file(path: str) -> dict[str, float] | None:
+    """Read a timing table and return {stage: us}."""
+    if not os.path.exists(path):
+        print(f"Warning: {path} not found. Skipping.")
         return None
+
     result = {}
-    with open(path, encoding="utf-8") as f:
+    with open(path, "r") as f:
         for line in f:
             line = line.strip()
-            # Match lines like: "1) Gaussian (padded)   3221.52   32.8%"
-            # or "Gaussian RVV (m1)   32194.12"
-            m = re.match(r"^(?:\d+\)\s+)?(.+?)\s{2,}([\d]+\.[\d]+)", line)
-            if not m:
+            if not line or line.startswith("-"):
                 continue
-            stage_raw = m.group(1).strip()
-            try:
-                t = float(m.group(2))
-            except ValueError:
+            if "|" not in line:
                 continue
-            name = _map_stage(stage_raw)
-            if name:
-                result[name] = t
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 2:
+                stage = parts[0]
+                time_str = parts[1].replace("µs", "").replace("us", "").strip()
+                try:
+                    result[stage] = float(time_str)
+                except ValueError:
+                    continue
     return result if result else None
 
 
-STAGES = ["Gaussian","Sobel","Magnitude","Direction","NMS","DblThresh","Hysteresis"]
-HOT    = ["Gaussian","Sobel","Magnitude"]
-COLOR_SCALAR = "#4C72B0"
-COLOR_RVV    = "#DD8452"
+def generate(
+    out_dir: str = "docs",
+    padded_file: str = "docs/timing_padded.txt",
+    rvv_file: str = "docs/timing_rvv.txt",
+) -> None:
+    """Generate plot 3."""
+    scalar = parse_timing_file(padded_file)
+    rvv = parse_timing_file(rvv_file)
 
-def generate(out_dir="docs", padded_file="docs/timing_padded.txt", rvv_file="docs/timing_rvv.txt"):
-    sc = parse_timing_file(padded_file)
-    rv = parse_timing_file(rvv_file)
-    if sc is None or rv is None:
-        print("[plot3] Skipping: missing data.")
+    if scalar is None or rvv is None:
+        print("[plot3] Missing data files, skipping before_after.png")
         return
-    hot  = [s for s in HOT if s in sc and s in rv]
-    sc_v = [sc[s] for s in hot]
-    rv_v = [rv[s] for s in hot]
-    x    = np.arange(len(hot))
-    w    = 0.35
-    fig, ax = plt.subplots(figsize=(9, 6))
-    ax.bar(x - w/2, sc_v, w, label="Scalar", color=COLOR_SCALAR)
-    ax.bar(x + w/2, rv_v, w, label="RVV",    color=COLOR_RVV)
-    for i, (s, r) in enumerate(zip(sc_v, rv_v)):
-        if r > 0:
-            ax.text(x[i], (s+r)/2, f"x{s/r:.1f}", ha="center", va="center",
-                    fontsize=11, fontweight="bold",
-                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="gray", alpha=0.8))
-    ax.set_xlabel("Stage")
-    ax.set_ylabel("Time (us)")
+
+    scalar_vals = [scalar.get(s, 0.0) for s in HOT_STAGES]
+    rvv_vals = [rvv.get(s, 0.0) for s in HOT_STAGES]
+
+    x = np.arange(len(HOT_STAGES))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    bars1 = ax.bar(x - width / 2, scalar_vals, width, label="Scalar", color="#4C72B0")
+    bars2 = ax.bar(x + width / 2, rvv_vals, width, label="RVV", color="#DD8452")
+
+    # Annotate speedup in the center gap
+    for i, (sv, rv) in enumerate(zip(scalar_vals, rvv_vals)):
+        if rv > 0:
+            speedup = sv / rv
+            ax.text(
+                x[i],
+                max(sv, rv) + max(scalar_vals) * 0.05,
+                f"×{speedup:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+                color="#333333",
+            )
+
+    ax.set_ylabel("Time (µs)")
     ax.set_title("Hot Stages: Before (Scalar) vs After (RVV)")
     ax.set_xticks(x)
-    ax.set_xticklabels(hot)
+    ax.set_xticklabels(HOT_STAGES)
     ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.5)
+    ax.set_ylim(0, max(max(scalar_vals), max(rvv_vals)) * 1.3)
+
     plt.tight_layout()
-    out = os.path.join(out_dir, "before_after.png")
-    plt.savefig(out, dpi=150)
-    plt.close()
-    print("[plot3] Saved:", out)
+    out_path = os.path.join(out_dir, "before_after.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"[plot3] Wrote {out_path}")
+
 
 if __name__ == "__main__":
     generate()

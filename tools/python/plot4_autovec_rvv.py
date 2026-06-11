@@ -1,116 +1,153 @@
-import os, re
-import matplotlib
-matplotlib.use("Agg")
+#!/usr/bin/env python3
+"""
+plot4_autovec_rvv.py — Compiler Auto-vec (-O3) vs Manual RVV Intrinsics
+
+Data source:
+  docs/bench_results.txt — parse the -O3 block for per-stage times (auto-vec)
+  docs/timing_rvv.txt — RVV times
+Output: {out_dir}/autovec_vs_rvv.png
+"""
+
+import os
+import re
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
-STAGE_MAP = {
-    "gaussian": "Gaussian",
-    "sobel":    "Sobel",
-    "magnitude":"Magnitude",
-    "direction":"Direction",
-    "non-max":  "NMS",
-    "nms":      "NMS",
-    "suppression": "NMS",
-    "double":   "DblThresh",
-    "threshold":"DblThresh",
-    "hysteresis":"Hysteresis",
-}
 
-def _map_stage(raw):
-    r = raw.lower()
-    for key, name in STAGE_MAP.items():
-        if key in r:
-            return name
-    return None
+STAGES = [
+    "Gaussian",
+    "Sobel",
+    "Magnitude",
+    "Direction",
+    "NMS",
+    "DblThresh",
+    "Hysteresis",
+]
 
-def parse_timing_file(path):
-    if not os.path.isfile(path):
-        print(f"WARNING: not found: {path}")
+
+def parse_bench_o3(path: str) -> dict[str, float] | None:
+    """Parse bench_results.txt and extract the -O3 block."""
+    if not os.path.exists(path):
+        print(f"Warning: {path} not found. Skipping.")
         return None
+
+    with open(path, "r") as f:
+        content = f.read()
+
+    # Find --- -O3 --- block
+    match = re.search(r"---\s*-O3\s*---(.*?)(?=---\s*-O|$)", content, re.DOTALL)
+    if not match:
+        print(f"[plot4] Could not find -O3 block in {path}")
+        return None
+
+    block = match.group(1)
     result = {}
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            # Match lines like: "1) Gaussian (padded)   3221.52   32.8%"
-            # or "Gaussian RVV (m1)   32194.12"
-            m = re.match(r"^(?:\d+\)\s+)?(.+?)\s{2,}([\d]+\.[\d]+)", line)
-            if not m:
-                continue
-            stage_raw = m.group(1).strip()
+    for line in block.strip().splitlines():
+        line = line.strip()
+        if not line or "|" not in line:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 2:
+            # Stage name may have "(padded)" etc.
+            stage_raw = parts[0]
+            time_str = parts[1].replace("µs", "").replace("us", "").strip()
+            # Extract base stage name
+            stage_name = stage_raw.split()[0]
             try:
-                t = float(m.group(2))
+                result[stage_name] = float(time_str)
             except ValueError:
                 continue
-            name = _map_stage(stage_raw)
-            if name:
-                result[name] = t
     return result if result else None
 
 
-STAGES = ["Gaussian","Sobel","Magnitude","Direction","NMS","DblThresh","Hysteresis"]
-COLOR_AUTOVEC = "#55A868"
-COLOR_RVV     = "#DD8452"
-
-def parse_bench_o3(path):
-    if not os.path.isfile(path):
-        print("[plot4] WARNING: not found:", path)
+def parse_timing_file(path: str) -> dict[str, float] | None:
+    """Read a timing table and return {stage: us}."""
+    if not os.path.exists(path):
+        print(f"Warning: {path} not found. Skipping.")
         return None
+
     result = {}
-    in_o3  = False
-    with open(path, encoding="utf-8") as f:
+    with open(path, "r") as f:
         for line in f:
-            s = line.strip()
-            if re.match(r"^---\s*-O", s):
-                in_o3 = ("-O3" in s)
+            line = line.strip()
+            if not line or line.startswith("-"):
                 continue
-            if not in_o3:
+            if "|" not in line:
                 continue
-            m = re.match(r"^(?:\d+\)\s+)?(.+?)\s{2,}([\d]+\.[\d]+)", s)
-            if not m:
-                continue
-            name = _map_stage(m.group(1).strip())
-            if name:
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 2:
+                stage = parts[0]
+                time_str = parts[1].replace("µs", "").replace("us", "").strip()
                 try:
-                    result[name] = float(m.group(2))
+                    result[stage] = float(time_str)
                 except ValueError:
-                    pass
+                    continue
     return result if result else None
 
-def generate(out_dir="docs", bench_file="docs/bench_results.txt", rvv_file="docs/timing_rvv.txt"):
-    av = parse_bench_o3(bench_file)
-    rv = parse_timing_file(rvv_file)
-    if av is None or rv is None:
-        print("[plot4] Skipping: missing data.")
+
+def generate(
+    out_dir: str = "docs",
+    bench_file: str = "docs/bench_results.txt",
+    rvv_file: str = "docs/timing_rvv.txt",
+) -> None:
+    """Generate plot 4."""
+    auto_vec = parse_bench_o3(bench_file)
+    rvv = parse_timing_file(rvv_file)
+
+    if auto_vec is None or rvv is None:
+        print("[plot4] Missing data files, skipping autovec_vs_rvv.png")
         return
-    stages = [s for s in STAGES if s in av and s in rv]
-    av_v   = [av[s] for s in stages]
-    rv_v   = [rv[s] for s in stages]
-    x      = np.arange(len(stages))
-    w      = 0.35
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.bar(x - w/2, av_v, w, label="Auto-vec (-O3)", color=COLOR_AUTOVEC)
-    ax.bar(x + w/2, rv_v, w, label="Manual RVV",     color=COLOR_RVV)
-    for i, (a, r) in enumerate(zip(av_v, rv_v)):
-        if r > 0 and a > 0:
-            ratio = a / r
-            lbl = f"x{ratio:.1f}" if ratio >= 1.0 else "scalar wins"
-            col = "black" if ratio >= 1.0 else "red"
-            ax.text(x[i]+w/2, r + max(av_v)*0.01, lbl,
-                    ha="center", va="bottom", fontsize=8, fontweight="bold", color=col)
-    ax.set_xlabel("Stage")
-    ax.set_ylabel("Time (us)")
+
+    auto_vals = [auto_vec.get(s, 0.0) for s in STAGES]
+    rvv_vals = [rvv.get(s, 0.0) for s in STAGES]
+
+    x = np.arange(len(STAGES))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    bars1 = ax.bar(x - width / 2, auto_vals, width, label="Auto-vec (-O3)", color="#55A868")
+    bars2 = ax.bar(x + width / 2, rvv_vals, width, label="Manual RVV", color="#DD8452")
+
+    # Annotations
+    for i, (av, rv) in enumerate(zip(auto_vals, rvv_vals)):
+        if rv > 0 and av > 0:
+            if rv < av:
+                ratio = av / rv
+                ax.text(
+                    x[i] + width / 2,
+                    rv + max(auto_vals) * 0.02,
+                    f"×{ratio:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    fontweight="bold",
+                )
+            elif av < rv:
+                ax.text(
+                    x[i] - width / 2,
+                    av + max(auto_vals) * 0.02,
+                    "scalar wins",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    color="red",
+                    fontweight="bold",
+                )
+
+    ax.set_ylabel("Time (µs)")
     ax.set_title("Compiler Auto-vec (-O3) vs Manual RVV Intrinsics")
     ax.set_xticks(x)
-    ax.set_xticklabels(stages, rotation=15, ha="right")
+    ax.set_xticklabels(STAGES, rotation=30, ha="right")
     ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.5)
+    ax.set_ylim(0, max(max(auto_vals), max(rvv_vals)) * 1.25)
+
     plt.tight_layout()
-    out = os.path.join(out_dir, "autovec_vs_rvv.png")
-    plt.savefig(out, dpi=150)
-    plt.close()
-    print("[plot4] Saved:", out)
+    out_path = os.path.join(out_dir, "autovec_vs_rvv.png")
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"[plot4] Wrote {out_path}")
+
 
 if __name__ == "__main__":
     generate()
