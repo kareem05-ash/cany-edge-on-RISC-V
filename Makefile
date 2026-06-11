@@ -403,9 +403,9 @@ test_vlen_sweep: $(BLD_RV)/test_vlen_sweep
 # SCRIPTS
 # ===========================================================================================
 setup:
-	chmoc +x scripts/setup.sh && ./scripts/setup.sh
+	chmod +x scripts/setup.sh && ./scripts/setup.sh
 verify:
-	chmoc +x scripts/verify.sh && ./scripts/verify.sh
+	chmod +x scripts/verify.sh && ./scripts/verify.sh
 # ===========================================================================================
 # UTILITIES
 # ===========================================================================================
