@@ -68,7 +68,6 @@ static void rvv_gaussian_m1(const uint8_t* __restrict__ pad,
             vuint32m4_t uscaled = __riscv_vreinterpret_v_i32m4_u32m4(scaled);
             vuint32m4_t shifted = __riscv_vsrl_vx_u32m4(uscaled, FP_SHIFT, vl);
 
-<<<<<<< Updated upstream
             // vnclipu_wx_u16m2: narrow u32m4 -> u16m2 with unsigned saturation.
             // LMUL halves (m4->m2). Saturation: values >65535 -> 65535.
             // In practice max output after /273 is 255, so saturation never fires.
@@ -80,12 +79,6 @@ static void rvv_gaussian_m1(const uint8_t* __restrict__ pad,
 
             // vse8_v_u8m1: store vl bytes to output row y, column x.
             // At different VLEN: vl changes, store covers exactly the right bytes.
-=======
-            // FIXED: Added rounding mode __RISCV_VXRM_RNU
-            vuint16m2_t n16 = __riscv_vnclipu_wx_u16m2(shifted, 0, __RISCV_VXRM_RNU, vl);
-            vuint8m1_t  n8  = __riscv_vnclipu_wx_u8m1(n16, 0, __RISCV_VXRM_RNU, vl);
-
->>>>>>> Stashed changes
             __riscv_vse8_v_u8m1(dst + y * W + x, n8, vl);
 
             x += (int)vl;
@@ -124,11 +117,7 @@ static void rvv_gaussian_m2(const uint8_t* __restrict__ pad,
             vuint32m8_t uscaled = __riscv_vreinterpret_v_i32m8_u32m8(scaled);
             vuint32m8_t shifted = __riscv_vsrl_vx_u32m8(uscaled, FP_SHIFT, vl);
 
-<<<<<<< Updated upstream
-            // Narrow u32m8->u16m4->u8m2 with saturation. LMUL halves each step.
-=======
             // FIXED: Added rounding mode
->>>>>>> Stashed changes
             vuint16m4_t n16 = __riscv_vnclipu_wx_u16m4(shifted, 0, __RISCV_VXRM_RNU, vl);
             vuint8m2_t  n8  = __riscv_vnclipu_wx_u8m2(n16, 0, __RISCV_VXRM_RNU, vl);
 
@@ -161,15 +150,9 @@ static void rvv_gaussian_m4(const uint8_t* __restrict__ pad,
             {
                 vint32m8_t sc = __riscv_vmul_vx_i32m8(acc, FP_MULT, vl);
                 vuint32m8_t usc = __riscv_vreinterpret_v_i32m8_u32m8(sc);
-<<<<<<< Updated upstream
                 vuint32m8_t sh  = __riscv_vsrl_vx_u32m8(usc, FP_SHIFT, vl);
                 vuint16m4_t n16 = __riscv_vnclipu_wx_u16m4(sh, 0, __RISCV_VXRM_RNU, vl);
                 vuint8m2_t  n8  = __riscv_vnclipu_wx_u8m2(n16, 0, __RISCV_VXRM_RNU, vl);
-=======
-                vuint32m8_t sh = __riscv_vsrl_vx_u32m8(usc, FP_SHIFT, vl);
-                vuint16m4_t n16 = __riscv_vnclipu_wx_u16m4(sh, 0, __RISCV_VXRM_RNU, vl);
-                vuint8m2_t n8 = __riscv_vnclipu_wx_u8m2(n16, 0, __RISCV_VXRM_RNU, vl);
->>>>>>> Stashed changes
                 __riscv_vse8_v_u8m2(dst + y * W + x, n8, vl);
             }
             x += (int)vl;
@@ -188,15 +171,9 @@ static void rvv_gaussian_m4(const uint8_t* __restrict__ pad,
             {
                 vint32m8_t sc = __riscv_vmul_vx_i32m8(acc, FP_MULT, vl);
                 vuint32m8_t usc = __riscv_vreinterpret_v_i32m8_u32m8(sc);
-<<<<<<< Updated upstream
                 vuint32m8_t sh  = __riscv_vsrl_vx_u32m8(usc, FP_SHIFT, vl);
                 vuint16m4_t n16 = __riscv_vnclipu_wx_u16m4(sh, 0, __RISCV_VXRM_RNU, vl);
                 vuint8m2_t  n8  = __riscv_vnclipu_wx_u8m2(n16, 0, __RISCV_VXRM_RNU, vl);
-=======
-                vuint32m8_t sh = __riscv_vsrl_vx_u32m8(usc, FP_SHIFT, vl);
-                vuint16m4_t n16 = __riscv_vnclipu_wx_u16m4(sh, 0, __RISCV_VXRM_RNU, vl);
-                vuint8m2_t n8 = __riscv_vnclipu_wx_u8m2(n16, 0, __RISCV_VXRM_RNU, vl);
->>>>>>> Stashed changes
                 __riscv_vse8_v_u8m2(dst + y * W + x, n8, vl);
             }
             x += (int)vl;

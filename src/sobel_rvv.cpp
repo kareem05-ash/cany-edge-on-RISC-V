@@ -178,20 +178,7 @@ void sobel_rvv(const Image &src, int16_t *Gx, int16_t *Gy)
             // Two-step: vwcvtu (u8→u16) then vreinterpret (u16→i16)
             // Safe because 0-255 always fits in positive int16_t.
             // LMUL doubles: u8m1 → u16m2 → i16m2
-
-<<<<<<< Updated upstream
-            vuint16m2_t al16_u = __riscv_vwcvtu_x_x_v_u16m2(a_left,   vl); vint16m2_t al16 = __riscv_vreinterpret_v_u16m2_i16m2(al16_u); // [widen u8m1→i16m2: above_left]
-            vuint16m2_t ac16_u = __riscv_vwcvtu_x_x_v_u16m2(a_center, vl); vint16m2_t ac16 = __riscv_vreinterpret_v_u16m2_i16m2(ac16_u); // [widen u8m1→i16m2: above_center]
-            vuint16m2_t ar16_u = __riscv_vwcvtu_x_x_v_u16m2(a_right,  vl); vint16m2_t ar16 = __riscv_vreinterpret_v_u16m2_i16m2(ar16_u); // [widen u8m1→i16m2: above_right]
-
-            vuint16m2_t cl16_u = __riscv_vwcvtu_x_x_v_u16m2(c_left,   vl); vint16m2_t cl16 = __riscv_vreinterpret_v_u16m2_i16m2(cl16_u); // [widen u8m1→i16m2: curr_left]
-            vuint16m2_t cr16_u = __riscv_vwcvtu_x_x_v_u16m2(c_right,  vl); vint16m2_t cr16 = __riscv_vreinterpret_v_u16m2_i16m2(cr16_u); // [widen u8m1→i16m2: curr_right]
-            vuint16m2_t cc16_u = __riscv_vwcvtu_x_x_v_u16m2(c_center, vl); vint16m2_t cc16 = __riscv_vreinterpret_v_u16m2_i16m2(cc16_u); // [widen u8m1→i16m2: curr_center]
-
-            vuint16m2_t bl16_u = __riscv_vwcvtu_x_x_v_u16m2(b_left,   vl); vint16m2_t bl16 = __riscv_vreinterpret_v_u16m2_i16m2(bl16_u); // [widen u8m1→i16m2: below_left]
-            vuint16m2_t bc16_u = __riscv_vwcvtu_x_x_v_u16m2(b_center, vl); vint16m2_t bc16 = __riscv_vreinterpret_v_u16m2_i16m2(bc16_u); // [widen u8m1→i16m2: below_center]
-            vuint16m2_t br16_u = __riscv_vwcvtu_x_x_v_u16m2(b_right,  vl); vint16m2_t br16 = __riscv_vreinterpret_v_u16m2_i16m2(br16_u); // [widen u8m1→i16m2: below_right]
-=======
+        
             vint16m2_t al16 = WIDEN_U8_TO_I16(a_left,   vl); // [widen: above_left   u8m1→i16m2]
             vint16m2_t ac16 = WIDEN_U8_TO_I16(a_center, vl); // [widen: above_center u8m1→i16m2]
             vint16m2_t ar16 = WIDEN_U8_TO_I16(a_right,  vl); // [widen: above_right  u8m1→i16m2]
@@ -206,7 +193,6 @@ void sobel_rvv(const Image &src, int16_t *Gx, int16_t *Gy)
 
             // suppress unused warning for cc16 if Gy doesn't use curr center
             (void)cc16;
->>>>>>> Stashed changes
 
             // ── Compute Gx ────────────────────────────────────────────
             // Sobel-X: [-1 0 +1 / -2 0 +2 / -1 0 +1]
