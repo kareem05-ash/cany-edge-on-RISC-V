@@ -172,6 +172,10 @@ run_target: $(BLD_RV)/canny
 	echo "$$OUTPUT" | awk \
 		'/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
 		> $(DOCS_DIR)/timing_target.txt; \
+		cp $(DOCS_DIR)/timing_target.txt $(DOCS_DIR)/timing_rvv.txt; \
+		echo "$$OUTPUT" | awk \
+			'/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+			> $(DOCS_DIR)/timing_padded.txt; \
 	echo "$$OUTPUT" | awk \
 		'/^Stage[[:space:]]+Scalar/{p=1} p{print} p && /^TOTAL/{exit}' \
 		> $(DOCS_DIR)/speedup_target.txt; \
@@ -310,7 +314,7 @@ sweep: _bench_all
 		echo "Binary size: $${SIZE} KB"                  | tee -a $(DOCS_DIR)/bench_results.txt; \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
 			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) \
-		| awk '/^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		| awk '/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
 		| tee -a $(DOCS_DIR)/bench_results.txt; \
 	done
 	@echo ""
@@ -357,7 +361,7 @@ vlen_sweep: $(BLD_RV)/canny
 		echo ""                 | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
 		echo "--- VLEN=$$V ---" | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/canny $(W) $(H) $(I) \
-		| awk '/^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		| awk '/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
 		| tee -a $(DOCS_DIR)/vlen_sweep.txt; \
 	done
 	@echo ""
