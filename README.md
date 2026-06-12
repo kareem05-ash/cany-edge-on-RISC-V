@@ -100,8 +100,11 @@ Output Edge Map (binary, {0, 255})
 ├── include/                    # Public headers — all API declarations
 │   ├── img_io.h                # Image class + load_img / save_img
 │   ├── gaussian.h              # convolve2d<> template + 3 blur variants
+│   ├── gaussian_rvv.h          # gaussian_blur_rvv() — Phase 6
 │   ├── sobel.h                 # sobel() — Gx, Gy (SoA int16_t)
+│   ├── sobel_rvv.h             # sobel_rvv() — Phase 6
 │   ├── mag_dir.h               # compute_magnitude(), compute_direction()
+│   ├── mag_dir_rvv.h           # compute_magnitude_rvv() — Phase 6 NEW
 │   ├── edge_refinement.h       # nms(), double_threshold(), hysteresis()
 │   ├── timer.h                 # Dual-target timer (POSIX / bare-metal ecall)
 │   └── tools.h                 # TimingResult, PipelineOutputs, report API
@@ -109,34 +112,50 @@ Output Edge Map (binary, {0, 255})
 ├── src/                        # Pipeline implementations
 │   ├── img_io.cpp
 │   ├── gaussian.cpp            # gaussian_blur, _separable, _padded
+│   ├── gaussian_rvv.cpp        # RVV intrinsic implementation — Phase 6
 │   ├── sobel.cpp
+│   ├── sobel_rvv.cpp           # RVV intrinsic implementation — Phase 6
 │   ├── mag_dir.cpp
+│   ├── mag_dir_rvv.cpp         # RVV L1 magnitude kernel — Phase 6 NEW
 │   ├── edge_refinement.cpp
-│   └── main.cpp                # Entry point — runs all 3 Gaussian variants + timing
+│   └── main.cpp                # Entry point — runs scalar + RVV pipelines + timing
 │
 ├── tests/
 │   ├── unit/                   # GoogleTest suites (host-side, g++)
 │   │   ├── test_img_io.cpp
 │   │   ├── test_gaussian.cpp
+│   │   ├── test_gaussian_rvv.cpp
 │   │   ├── test_sobel.cpp
+│   │   ├── test_sobel_rvv.cpp
 │   │   ├── test_mag_dir.cpp
+│   │   ├── test_mag_dir_rvv.cpp   # Phase 6 NEW
 │   │   └── test_edge_refinement.cpp
 │   └── integ/                  # RVV equivalence tests (QEMU, assert-based)
 │       ├── test_rvv_equiv.cpp  # Scalar vs RVV output comparison at VLEN 128/256/512
-│       └── test_sobel_rv.cpp
+│       ├── test_sobel_rv.cpp
+│       └── test_vlen_sweep.cpp    # Phase 6 NEW — VLEN-agnostic proof
 │
 ├── tools/
 │   ├── cpp/
 │   │   ├── gen_imgs.cpp        # In-memory test image generators
 │   │   ├── img_utils.cpp       # save_raw_u8()
-│   │   ├── pipeline_helpers.cpp# run_pipeline(), save_outputs(), free_pipeline_outputs()
+│   │   ├── lmul_sweep.cpp      # Phase 6 NEW — Gaussian LMUL benchmark
+│   │   ├── pipeline_helpers.cpp# run_pipeline(), run_pipeline_rvv(), helpers
 │   │   ├── report.cpp          # Timing tables, hotspot, sweep, autovec reports
 │   │   └── rvv_verify.cpp      # Phase 1 RVV toolchain smoke test
 │   └── python/
-│       ├── raw_loader.py       # Load .raw files as numpy arrays
-│       ├── see_img.py          # Display a .raw image with matplotlib
-│       ├── compare.py          # Side-by-side diff of two .raw images
-│       └── sweep_plot.py       # Plot the Phase 4 optimization sweep results
+│       ├── plot_all.py         # Phase 6 NEW — top-level dispatcher
+│       ├── plot1_speedup.py    # Phase 6 NEW — Scalar / Auto-vec / RVV bar
+│       ├── plot2_pie.py        # Phase 6 NEW — pipeline bottleneck pie
+│       ├── plot3_before_after.py # Phase 6 NEW — hot stages before/after
+│       ├── plot4_autovec_rvv.py  # Phase 6 NEW — -O3 vs manual RVV
+│       ├── plot5_lmul_sweep.py   # Phase 6 NEW — Gaussian LMUL sweep
+│       ├── plot6_pipeline.py     # Phase 7 STUB
+│       ├── plot7_size_sweep.py   # Phase 7 STUB
+│       ├── plot8_opt_levels.py   # Phase 7 STUB
+│       ├── plot10_stacked.py     # Phase 7 STUB
+│       ├── raw_loader.py       # Raw image I/O helper
+│       └── see_img.py          # Display raw images via matplotlib
 │
 ├── scripts/
 │   ├── setup.sh                # Full toolchain + QEMU + GoogleTest install script
@@ -150,6 +169,8 @@ Output Edge Map (binary, {0, 255})
 │   ├── timing_2d.txt           # (generated) per-stage timing — 2D Gaussian
 │   ├── timing_separable.txt    # (generated) per-stage timing — separable Gaussian
 │   ├── timing_padded.txt       # (generated) per-stage timing — padded Gaussian
+│   ├── timing_rvv.txt          # (generated) per-stage timing — RVV pipeline
+│   ├── lmul_gaussian.txt       # (generated) LMUL sweep results
 │   ├── bench_results.txt       # (generated) full optimization sweep results
 │   └── autovec_report.txt      # (generated) GCC -fopt-info-vec-all log
 └── imgs/                       # (generated) output .raw images
@@ -299,15 +320,24 @@ make run_target W=512 H=512 I=2 VLEN=256
 make run_all W=512 H=512 I=2
 ```
 
-### Visualize Output Images
+### Visualization Scripts (`tools/python/`)
 
-```bash
-# View any .raw output file
-python3 tools/python/see_img.py imgs/vertical_edge_512x512_refined.raw 512 512
+| Script | Phase | Status | Description |
+|--------|-------|--------|-------------|
+| `plot_all.py` | 6+ | Implemented | Top-level dispatcher; `--phase 6` for Phase 6 only |
+| `plot1_speedup.py` | 6 | Implemented | Scalar / Auto-vec / RVV grouped bar |
+| `plot2_pie.py` | 6 | Implemented | Pipeline bottleneck pie (scalar baseline) |
+| `plot3_before_after.py` | 6 | Implemented | Hot stages before/after |
+| `plot4_autovec_rvv.py` | 6 | Implemented | Compiler -O3 vs manual RVV |
+| `plot5_lmul_sweep.py` | 6 | Implemented | Gaussian LMUL sweep |
+| `plot6_pipeline.py` | 7 | **Stub** | 4-panel image transform |
+| `plot7_size_sweep.py` | 7 | **Stub** | Time vs resolution |
+| `plot8_opt_levels.py` | 7 | **Stub** | -O0 through -Ofast |
+| `plot10_stacked.py` | 7 | **Stub** | Stacked stage contribution |
+| `raw_loader.py` | — | Utility | Raw image I/O helper |
+| `see_img.py` | — | Utility | Display raw images via matplotlib |
 
-# Compare scalar vs. RVV output pixel-by-pixel
-python3 tools/python/compare.py imgs/out_scalar.raw imgs/out_rvv.raw 512 512
-```
+Run from project root: `python3 tools/python/plot_all.py --phase 6`
 
 ---
 
@@ -418,7 +448,39 @@ Based on profiling, Gaussian blur and Sobel magnitude collectively account for t
 
 ## Phase 6 — RVV Intrinsic Optimization
 
-> **Status: In Progress.**
+- [x] Gaussian 5×5 RVV — LMUL=1/2/4 variants (`src/gaussian_rvv.cpp`)
+- [x] Sobel RVV — SoA int16 outputs (`src/sobel_rvv.cpp`)
+- [x] Magnitude L1 RVV — two-pass strip-mined (`src/mag_dir_rvv.cpp`)
+- [x] `run_pipeline_rvv()` — all three hot stages use RVV intrinsics
+- [x] Unit tests for all RVV kernels (GoogleTest, host-side)
+- [x] VLEN sweep correctness test — pipeline proven VLEN-agnostic at 128/256/512
+- [x] Phase 6 visualization plots 1–5 (`tools/python/plot_all.py --phase 6`)
+
+---
+
+## Quick Start — Phase 6 RVV Pipeline
+
+```bash
+# 1. Build cross-compiled RVV binary
+make canny_rv
+
+# 2. Run the full RVV pipeline on QEMU (VLEN=256, 512×512 image)
+make run VLEN=256
+
+# 3. Verify RVV correctness vs scalar at all three VLEN values
+make test_vlen_sweep
+
+# 4. Run LMUL sweep for Gaussian (produces docs/lmul_gaussian.txt)
+make lmul_sweep VLEN=256
+
+# 5. Generate Phase 6 plots
+python3 tools/python/plot_all.py --phase 6
+
+# 6. Run all host unit tests (includes new mag_dir_rvv tests)
+make test
+```
+
+---
 
 ### RVV Programming Model
 
@@ -534,6 +596,9 @@ All RVV files are gated with `#ifdef __riscv` so the host build is never affecte
 | `make test_mag_dir` | Test magnitude & direction only |
 | `make test_edge_refinement` | Test NMS, threshold, hysteresis |
 | `make test_rvv_equiv` | RVV equivalence tests at VLEN = 128/256/512 (QEMU) |
+| `make test_mag_dir_rvv` | Magnitude RVV L1 kernel unit tests (host) |
+| `make test_vlen_sweep` | Full RVV pipeline VLEN-agnostic proof at VLEN=128/256/512 (QEMU) |
+| `make lmul_sweep [VLEN=..] [W=..] [H=..]` | Gaussian LMUL=1/2/4 timing → `docs/lmul_gaussian.txt` (QEMU) |
 | `make verify_rvv` | RVV toolchain smoke test (Phase 1) |
 | `make sweep [W=..] [H=..] [I=..] [VLEN=..]` | Build all optimization levels and benchmark on QEMU |
 | `make autovec` | Compile with `-fopt-info-vec-all`, save report to `docs/autovec_report.txt` |
