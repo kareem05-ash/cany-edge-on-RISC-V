@@ -33,6 +33,7 @@
 struct TimingResult {
     const char *name; ///< Human-readable stage name (e.g., `"Gaussian (2D kernel)"`).
     double time_us;   ///< Average wall-clock time per iteration in microseconds.
+    bool has_rvv;     ///< True if that stage has been manually vectorized using RVV.
 };
 
 /**

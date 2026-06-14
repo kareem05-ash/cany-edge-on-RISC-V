@@ -15,6 +15,8 @@
 //      make run_target  W=512 H=512 I=0    # RISC-V: timing via QEMU
 //      make run_host    W=512 H=512 I=0    # host:   timing + file I/O
 // ====================================================================================================
+#define DIVIDER      "====================================================================================================" // 100 chars
+#define SECTION_DIV  "----------------------------------------------------------------------------------------------------" // 100 chars
 
 #include "edge_refinement.h"
 #include "gaussian.h"
@@ -68,29 +70,29 @@ static Image gen_by_index(int I, int W, int H) {
         exit(1);
     }
 }
-
 // ====================================================================================================
 // main()
 // ====================================================================================================
 int main(int argc, char *argv[]) {
-    // ── Arguments ─────────────────────────────────────────────────────────
+
+    // ── Arguments ─────────────────────────────────────────────────────────────
     if (argc != 5) {
         fprintf(stderr,
-                "Usage: %s <W> <H> <I>\n"
+                "Usage: %s <W> <H> <I> <VLEN>\n"
                 "  W, H : image dimensions in pixels\n"
                 "  I    : image index\n"
                 "         0=white_square  1=circle        2=vertical_edge\n"
                 "         3=hor_edge      4=checkerboard  5=impulse\n"
                 "         6=gradient_ramp\n"
-                "  VLEN : <128, 256, 512>",
+                "  VLEN : 128 | 256 | 512\n",
                 argv[0]);
         return 1;
     }
 
-    const int W     = atoi(argv[1]);
-    const int H     = atoi(argv[2]);
-    const int I     = atoi(argv[3]);
-    const int VLEN  = atoi(argv[4]);
+    const int W    = atoi(argv[1]);
+    const int H    = atoi(argv[2]);
+    const int I    = atoi(argv[3]);
+    const int VLEN = atoi(argv[4]);
 
     if (W <= 0 || H <= 0) {
         fprintf(stderr, "Error: W and H must be positive integers.\n");
@@ -101,12 +103,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    const char *img_name = IMG_NAMES[I];
-    const int ITERATIONS = 100;
+    const char *img_name   = IMG_NAMES[I];
+    const int   ITERATIONS = 100;
 
-    // ── Banner ─────────────────────────────────────────────────────────────
-    printf("\n====================================================================================="
-           "===============\n");
+    // ── Banner ────────────────────────────────────────────────────────────────
+    printf("\n%s\n", DIVIDER);
     printf(" << Canny Edge Pipeline >>\n");
 #ifdef __riscv
     printf(" >> Mode       : RISC-V Target (no file I/O)\n");
@@ -116,56 +117,71 @@ int main(int argc, char *argv[]) {
     printf(" >> Image      : %s [I=%d]\n", img_name, I);
     printf(" >> W x H      : %d x %d\n", W, H);
     printf(" >> Iterations : %d\n", ITERATIONS);
-    printf("======================================================================================="
-           "=============\n\n");
+    printf("%s\n\n", DIVIDER);
 
-    // ── Generate source image in memory ────────────────────────────────────
-    // Same on both host and target — no disk I/O needed for input
-    printf("[Step 1] Generating source image ...\n");
-    Image src = gen_by_index(I, W, H);
-    printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
-
-    // ── Pipeline outputs ───────────────────────────────────────────────────
+    // ── Declare and zero all timing arrays ────────────────────────────────────
+    // has_rvv marks which stages have a manual RVV implementation.
+    // Stages without RVV show "scalar only" in the speedup table and
+    // contribute their scalar time to the RVV total (so overall speedup
+    // is not artificially inflated).
     TimingResult results_2d[7];
     TimingResult results_sep[7];
     TimingResult results_pad[7];
     TimingResult results_rvv[7];
-    PipelineOutputs out_2d = {nullptr, nullptr, nullptr};
+    memset(results_2d,  0, sizeof(results_2d));
+    memset(results_sep, 0, sizeof(results_sep));
+    memset(results_pad, 0, sizeof(results_pad));
+    memset(results_rvv, 0, sizeof(results_rvv));
+
+    // Gaussian=true, Sobel=true, Magnitude=true,
+    // Direction=false, NMS=false, DblThresh=false, Hysteresis=false
+    const bool HAS_RVV[7] = {true, true, true, false, false, false, false};
+    for (int i = 0; i < 7; i++) {
+        results_2d[i].has_rvv  = HAS_RVV[i];
+        results_sep[i].has_rvv = HAS_RVV[i];
+        results_pad[i].has_rvv = HAS_RVV[i];
+        results_rvv[i].has_rvv = HAS_RVV[i];
+    }
+
+    // ── Pipeline output buffers ───────────────────────────────────────────────
+    PipelineOutputs out_2d  = {nullptr, nullptr, nullptr};
     PipelineOutputs out_sep = {nullptr, nullptr, nullptr};
     PipelineOutputs out_pad = {nullptr, nullptr, nullptr};
     PipelineOutputs out_rvv = {nullptr, nullptr, nullptr};
 
-    // ── [Method 1] 2D Gaussian ─────────────────────────────────────────────
+    // ── Generate source image ─────────────────────────────────────────────────
+    printf("[Step 1] Generating source image ...\n");
+    Image src = gen_by_index(I, W, H);
+    printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
+
+    // ── [Step 2] 2D Gaussian ──────────────────────────────────────────────────
     printf("\n[Step 2] Pipeline — 2D Gaussian kernel (%d iterations) ...\n", ITERATIONS);
     run_pipeline(src, W, H, ITERATIONS, 0, true, results_2d, out_2d);
     printf("\n");
     report_timing_table(results_2d, 7, "docs/timing_2d.txt");
     printf("\n");
     report_hotspot(results_2d, 7);
-    printf("\n-------------------------------------------------------------------------------------"
-           "---------------\n");
+    printf("\n%s\n", SECTION_DIV);
 
-    // ── [Method 2] Separable Gaussian ──────────────────────────────────────
+    // ── [Step 3] Separable Gaussian ───────────────────────────────────────────
     printf("\n[Step 3] Pipeline — Separable Gaussian kernel (%d iterations) ...\n", ITERATIONS);
     run_pipeline(src, W, H, ITERATIONS, 1, true, results_sep, out_sep);
     printf("\n");
     report_timing_table(results_sep, 7, "docs/timing_separable.txt");
     printf("\n");
     report_hotspot(results_sep, 7);
-    printf("\n-------------------------------------------------------------------------------------"
-           "---------------\n");
+    printf("\n%s\n", SECTION_DIV);
 
-    // ── [Method 3] Padded Gaussian (vectorization check) ───────────────────
+    // ── [Step 4] Padded Gaussian ──────────────────────────────────────────────
     printf("\n[Step 4] Pipeline — Padded Gaussian kernel (%d iterations) ...\n", ITERATIONS);
     run_pipeline(src, W, H, ITERATIONS, 2, true, results_pad, out_pad);
     printf("\n");
     report_timing_table(results_pad, 7, "docs/timing_padded.txt");
     printf("\n");
     report_hotspot(results_pad, 7);
-    printf("\n-------------------------------------------------------------------------------------"
-           "---------------\n");
+    printf("\n%s\n", SECTION_DIV);
 
-    //── [Method 4] RVV — Gaussian (m2) + Sobel RVV + Magnitude (scalar) ───────
+    // ── [Step 5] RVV pipeline (RISC-V target only) ────────────────────────────
 #ifdef __riscv
     printf("\n[Step 5] Pipeline — RVV (Gaussian m2 + Sobel RVV) (%d iterations) ...\n", ITERATIONS);
     run_pipeline_rvv(src, W, H, ITERATIONS, results_rvv, out_rvv);
@@ -174,33 +190,27 @@ int main(int argc, char *argv[]) {
     printf("\n");
     report_hotspot(results_rvv, 7);
     printf("\n");
-
-    // vlen must be passed in as a command-line argument or compile-time define.
-    // The Makefile passes it; read it however your main() already parses argv.
     report_rvv_speedup(results_pad, results_rvv, 7, VLEN, "docs/speedup_rvv.txt");
-    printf("\n-------------------------------------------------------------------------------------"
-           "---------------\n");
-#endif // __riscv
+    printf("\n%s\n", SECTION_DIV);
+#endif
 
-    // ── Save outputs (host only) ────────────────────────────────────────────
+    // ── [Step 6] Save output images (host only) ───────────────────────────────
 #ifndef __riscv
     printf("\n[Step 6] Saving output images ...\n");
-    save_outputs(img_name, W, H, "", src, *out_2d.blurred, out_2d.mag, out_2d.out_refined);
+    save_outputs(img_name, W, H, "",     src, *out_2d.blurred,  out_2d.mag,  out_2d.out_refined);
     save_outputs(img_name, W, H, "_sep", src, *out_sep.blurred, out_sep.mag, out_sep.out_refined);
     save_outputs(img_name, W, H, "_pad", src, *out_pad.blurred, out_pad.mag, out_pad.out_refined);
 #endif
 
-    // ── Cleanup ────────────────────────────────────────────────────────────
+    // ── Cleanup ───────────────────────────────────────────────────────────────
     free_pipeline_outputs(out_2d);
     free_pipeline_outputs(out_sep);
     free_pipeline_outputs(out_pad);
     free_pipeline_outputs(out_rvv);
 
-    printf("\n====================================================================================="
-           "===============\n");
+    printf("\n%s\n", DIVIDER);
     printf(" << Pipeline Complete >>\n");
-    printf("======================================================================================="
-           "=============\n\n");
+    printf("%s\n\n", DIVIDER);
 
     return 0;
 }
