@@ -313,7 +313,7 @@ void report_rvv_speedup(const TimingResult *scalar,
                    rvv[i].time_us, speedup);
             total_rvv += rvv[i].time_us;
         } else {
-            printf("%-30s %12.2f %16s %13s\n",
+            printf("%-30s %12.2f %16s %14s\n",
                    scalar[i].name, scalar[i].time_us,
                    "-", "scalar only");
             total_rvv += scalar[i].time_us;  // scalar time counts in total
@@ -346,7 +346,7 @@ void report_rvv_speedup(const TimingResult *scalar,
                     scalar[i].name, scalar[i].time_us,
                     rvv[i].time_us, speedup);
         } else {
-            fprintf(f, "%-30s %12.2f %16s %13s\n",
+            fprintf(f, "%-30s %12.2f %16s %14s\n",
                     scalar[i].name, scalar[i].time_us,
                     "-", "scalar only");
         }
