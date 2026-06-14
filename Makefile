@@ -167,7 +167,7 @@ run_target: $(BLD_RV)/canny
 	@echo "=== Running on RISC-V target (VLEN=$(VLEN)) ==="
 	@mkdir -p $(DOCS_DIR)
 	@OUTPUT=$$(qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
-		$(BLD_RV)/canny $(W) $(H) $(I)); \
+		$(BLD_RV)/canny $(W) $(H) $(I) $(VLEN)); \
 	echo "$$OUTPUT"; \
 	echo "$$OUTPUT" | awk \
 		'/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
@@ -190,7 +190,7 @@ run_all: $(BLD_RV)/canny
 	@for V in 128 256 512; do \
 		echo ""; \
 		echo "=== VLEN=$$V ==="; \
-		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/canny $(W) $(H) $(I); \
+		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/canny $(W) $(H) $(I) $$V; \
 	done
 
 # ===========================================================================================

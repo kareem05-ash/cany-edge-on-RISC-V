@@ -74,21 +74,23 @@ static Image gen_by_index(int I, int W, int H) {
 // ====================================================================================================
 int main(int argc, char *argv[]) {
     // ── Arguments ─────────────────────────────────────────────────────────
-    if (argc != 4) {
+    if (argc != 5) {
         fprintf(stderr,
                 "Usage: %s <W> <H> <I>\n"
                 "  W, H : image dimensions in pixels\n"
                 "  I    : image index\n"
                 "         0=white_square  1=circle        2=vertical_edge\n"
                 "         3=hor_edge      4=checkerboard  5=impulse\n"
-                "         6=gradient_ramp\n",
+                "         6=gradient_ramp\n"
+                "  VLEN : <128, 256, 512>",
                 argv[0]);
         return 1;
     }
 
-    const int W = atoi(argv[1]);
-    const int H = atoi(argv[2]);
-    const int I = atoi(argv[3]);
+    const int W     = atoi(argv[1]);
+    const int H     = atoi(argv[2]);
+    const int I     = atoi(argv[3]);
+    const int VLEN  = atoi(argv[4]);
 
     if (W <= 0 || H <= 0) {
         fprintf(stderr, "Error: W and H must be positive integers.\n");
@@ -173,11 +175,9 @@ int main(int argc, char *argv[]) {
     report_hotspot(results_rvv, 7);
     printf("\n");
 
-    // Speedup report: scalar padded vs RVV at all three VLEN values.
-    // All three point to results_rvv because we collect one VLEN per binary run.
-    // The Makefile run_all target runs this binary three times.
-    const TimingResult *rvv_ptrs[3] = {results_rvv, results_rvv, results_rvv};
-    report_rvv_speedup(results_pad, rvv_ptrs, 7, "docs/speedup_rvv.txt");
+    // vlen must be passed in as a command-line argument or compile-time define.
+    // The Makefile passes it; read it however your main() already parses argv.
+    report_rvv_speedup(results_pad, results_rvv, 7, VLEN, "docs/speedup_rvv.txt");
     printf("\n-------------------------------------------------------------------------------------"
            "---------------\n");
 #endif // __riscv

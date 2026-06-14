@@ -261,12 +261,16 @@ void report_autovec_summary(const char *autovec_path, const char *out_path);
  * Computes speedup ratio per stage.
  *
  * @param scalar    Scalar baseline timing (one `TimingResult` per stage).
- * @param rvv       Array of 3 pointers to `TimingResult` arrays (VLEN 128, 256, 512).
+ * @param rvv       Pointer to the `TimingResult`.
  * @param n_stages  Number of pipeline stages (typically 7).
+ * @param vlen      VLEN value
  * @param out_path  Output file path.
  */
-void report_rvv_speedup(const TimingResult *scalar, const TimingResult *rvv[3],
-                        int n_stages, const char *out_path);
+void report_rvv_speedup(const TimingResult *scalar,
+                        const TimingResult *rvv,
+                        int                 n_stages,
+                        int                 vlen,
+                        const char         *out_path);
 
 
 // ─── Pipeline orchestration (tools/cpp/pipeline_helpers.cpp) ──────────────────
