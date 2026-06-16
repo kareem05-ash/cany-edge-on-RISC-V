@@ -313,7 +313,7 @@ sweep: _bench_all
 		SIZE=$$(du -k $(BLD_RV)/canny_$$FLAG | cut -f1); \
 		echo "Binary size: $${SIZE} KB"                  | tee -a $(DOCS_DIR)/bench_results.txt; \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
-			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) \
+			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) $(VLEN) \
 		| awk '/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
 		| tee -a $(DOCS_DIR)/bench_results.txt; \
 	done

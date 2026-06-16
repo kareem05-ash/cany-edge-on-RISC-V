@@ -185,8 +185,24 @@ int main(int argc, char *argv[]) {
 #ifdef __riscv
     printf("\n[Step 5] Pipeline — RVV (Gaussian m2 + Sobel RVV) (%d iterations) ...\n", ITERATIONS);
     run_pipeline_rvv(src, W, H, ITERATIONS, results_rvv, out_rvv);
-    printf("\n");
-    report_timing_table(results_rvv, 7, "docs/timing_rvv.txt");
+
+    // ── Backfill scalar times for non-RVV stages ──────────────────────────────
+    // run_pipeline_rvv only fills has_rvv=true stages with RVV times.
+    // Non-RVV stages (Direction, NMS, DblThresh, Hysteresis) stay at 0.0 after
+    // the RVV pipeline run.  Copy the padded-scalar times so that:
+    //   (a) timing_rvv.txt shows real wall-clock cost for every stage, and
+    //   (b) timing_target.txt col=1 (read by Python plots) reflects true cost
+    //       for all bars — not a misleading zero that makes RVV look free.
+    for (int i = 0; i < 7; i++) {
+        if (!results_rvv[i].has_rvv) {
+            results_rvv[i].time_us = results_pad[i].time_us;
+            // Copy name if not already set by run_pipeline_rvv
+            if (!results_rvv[i].name || results_rvv[i].name[0] == '\0')
+                results_rvv[i].name = results_pad[i].name;
+        }
+    }
+
+    report_timing_table(results_rvv, 7, "docs/timing_rvv.txt", true);
     printf("\n");
     report_hotspot(results_rvv, 7);
     printf("\n");

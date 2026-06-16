@@ -206,8 +206,12 @@ void gen_all(int W, int H, int cell_size, unsigned int seed);
  * @param results  Array of `TimingResult` structs (one per stage).
  * @param n        Number of stages (7 for the full pipeline).
  * @param out_path Output file path (e.g., `"docs/timing_2d.txt"`). Host only.
+ * @param suppress_non_rvv Indicates if stage has been vectorized manually using RVV or not.
  */
-void report_timing_table(const TimingResult *results, int n, const char *out_path);
+void report_timing_table(const TimingResult *results,
+                         int                 n,
+                         const char         *out_path,
+                         bool                suppress_non_rvv = false);;
 
 /**
  * @brief Print the hotspot stage and its Amdahl's Law speedup ceiling.

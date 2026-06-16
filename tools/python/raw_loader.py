@@ -1,5 +1,5 @@
 # tools/python/raw_loader.py
-# ===== universal utlity that loads raw images as an np.formfile object =====
+# ===== universal utility that loads raw images as an np.fromfile object =====
 
 import numpy as np
 import os
