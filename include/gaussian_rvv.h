@@ -39,4 +39,30 @@ void gaussian_blur_rvv_m1(const Image& src, Image& dst);
 void gaussian_blur_rvv_m2(const Image& src, Image& dst);
 void gaussian_blur_rvv_m4(const Image& src, Image& dst);
 
+/**
+ * @brief RVV-accelerated separable Gaussian blur — two strip-mined 1-D passes.
+ *
+ * Implements the same two-pass algorithm as gaussian_blur_separable() but with
+ * RVV intrinsics for the inner multiply-accumulate loop.
+ *
+ * **Why separable RVV outperforms 2-D RVV on QEMU:**
+ * - 2-D padded (gaussian_blur_rvv_m2): 25 MAC ops per output pixel.
+ * - Separable RVV (this function):     10 MAC ops per output pixel (2.5× fewer).
+ * QEMU counts translated instructions, not memory stalls, so fewer arithmetic
+ * operations translate directly to faster wall-clock time.
+ *
+ * **Precision:** Each pass divides by GAUSS_SUM_1D (17) via fixed-point
+ * multiply+shift (×3855, >>16). Combined divisor = 289 ≠ 273 (2-D kernel).
+ * Output matches gaussian_blur_separable() within ±1 LSB.
+ * Output may differ from gaussian_blur_rvv_m2() by up to ±3 LSB — expected
+ * and tested in GaussianRVV_Sep/VsRVV2D.
+ *
+ * **Host fallback:** Falls back to gaussian_blur_separable() on non-RISC-V
+ * hosts so GoogleTest compiles and runs correctly with make test.
+ *
+ * @param src Source grayscale image.
+ * @param dst Destination image (same dimensions as src).
+ */
+void gaussian_blur_rvv_sep(const Image& src, Image& dst);
+
 #endif // GAUSSIAN_RVV_H

@@ -128,26 +128,30 @@ int main(int argc, char *argv[]) {
     TimingResult results_sep[7];
     TimingResult results_pad[7];
     TimingResult results_rvv[7];
-    memset(results_2d,  0, sizeof(results_2d));
-    memset(results_sep, 0, sizeof(results_sep));
-    memset(results_pad, 0, sizeof(results_pad));
-    memset(results_rvv, 0, sizeof(results_rvv));
+    TimingResult results_rvv_sep[7];
+    memset(results_2d,      0, sizeof(results_2d));
+    memset(results_sep,     0, sizeof(results_sep));
+    memset(results_pad,     0, sizeof(results_pad));
+    memset(results_rvv,     0, sizeof(results_rvv));
+    memset(results_rvv_sep, 0, sizeof(results_rvv_sep));
 
     // Gaussian=true, Sobel=true, Magnitude=true,
     // Direction=false, NMS=false, DblThresh=false, Hysteresis=false
     const bool HAS_RVV[7] = {true, true, true, false, false, false, false};
     for (int i = 0; i < 7; i++) {
-        results_2d[i].has_rvv  = HAS_RVV[i];
-        results_sep[i].has_rvv = HAS_RVV[i];
-        results_pad[i].has_rvv = HAS_RVV[i];
-        results_rvv[i].has_rvv = HAS_RVV[i];
+        results_2d[i].has_rvv      = HAS_RVV[i];
+        results_sep[i].has_rvv     = HAS_RVV[i];
+        results_pad[i].has_rvv     = HAS_RVV[i];
+        results_rvv[i].has_rvv     = HAS_RVV[i];
+        results_rvv_sep[i].has_rvv = HAS_RVV[i];
     }
 
     // ── Pipeline output buffers ───────────────────────────────────────────────
-    PipelineOutputs out_2d  = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_sep = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_pad = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_rvv = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_2d      = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_sep     = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_pad     = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_rvv     = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_rvv_sep = {nullptr, nullptr, nullptr};
 
     // ── Generate source image ─────────────────────────────────────────────────
     printf("[Step 1] Generating source image ...\n");
@@ -181,22 +185,17 @@ int main(int argc, char *argv[]) {
     report_hotspot(results_pad, 7);
     printf("\n%s\n", SECTION_DIV);
 
-    // ── [Step 5] RVV pipeline (RISC-V target only) ────────────────────────────
+    // ── [Step 5] RVV pipeline — Padded 5×5 Gaussian (RISC-V target only) ────
 #ifdef __riscv
-    printf("\n[Step 5] Pipeline — RVV (Gaussian m2 + Sobel RVV) (%d iterations) ...\n", ITERATIONS);
+    printf("\n[Step 5] Pipeline — RVV Padded 5x5 Gaussian (%d iterations) ...\n", ITERATIONS);
     run_pipeline_rvv(src, W, H, ITERATIONS, results_rvv, out_rvv);
 
-    // ── Backfill scalar times for non-RVV stages ──────────────────────────────
-    // run_pipeline_rvv only fills has_rvv=true stages with RVV times.
-    // Non-RVV stages (Direction, NMS, DblThresh, Hysteresis) stay at 0.0 after
-    // the RVV pipeline run.  Copy the padded-scalar times so that:
-    //   (a) timing_rvv.txt shows real wall-clock cost for every stage, and
-    //   (b) timing_target.txt col=1 (read by Python plots) reflects true cost
-    //       for all bars — not a misleading zero that makes RVV look free.
+    // Backfill non-RVV stage times from padded scalar baseline.
+    // Direction, NMS, DblThresh, Hysteresis stay scalar; copy their times so
+    // timing_rvv.txt shows real wall-clock cost for every stage.
     for (int i = 0; i < 7; i++) {
         if (!results_rvv[i].has_rvv) {
             results_rvv[i].time_us = results_pad[i].time_us;
-            // Copy name if not already set by run_pipeline_rvv
             if (!results_rvv[i].name || results_rvv[i].name[0] == '\0')
                 results_rvv[i].name = results_pad[i].name;
         }
@@ -207,6 +206,30 @@ int main(int argc, char *argv[]) {
     report_hotspot(results_rvv, 7);
     printf("\n");
     report_rvv_speedup(results_pad, results_rvv, 7, VLEN, "docs/speedup_rvv.txt");
+    printf("\n%s\n", SECTION_DIV);
+
+    // ── [Step 6] RVV pipeline — Separable Gaussian ───────────────────────────
+    printf("\n[Step 6] Pipeline — RVV Separable Gaussian (%d iterations) ...\n", ITERATIONS);
+    run_pipeline_rvv_sep(src, W, H, ITERATIONS, results_rvv_sep, out_rvv_sep);
+
+    // Backfill non-RVV stage times from SCALAR SEPARABLE baseline (results_sep).
+    // We compare against results_sep (not results_pad) so the speedup table is
+    // an apples-to-apples comparison: scalar separable vs RVV separable — same
+    // divisor chain (17×17=289), same algorithm, just vectorised.
+    for (int i = 0; i < 7; i++) {
+        if (!results_rvv_sep[i].has_rvv) {
+            results_rvv_sep[i].time_us = results_sep[i].time_us;
+            if (!results_rvv_sep[i].name || results_rvv_sep[i].name[0] == '\0')
+                results_rvv_sep[i].name = results_sep[i].name;
+        }
+    }
+
+    report_timing_table(results_rvv_sep, 7, "docs/timing_rvv_sep.txt", true);
+    printf("\n");
+    report_hotspot(results_rvv_sep, 7);
+    printf("\n");
+    // Compare scalar separable vs RVV separable — same algorithm, just vectorised.
+    report_rvv_speedup(results_sep, results_rvv_sep, 7, VLEN, "docs/speedup_rvv_sep.txt");
     printf("\n%s\n", SECTION_DIV);
 #endif
 
@@ -223,6 +246,7 @@ int main(int argc, char *argv[]) {
     free_pipeline_outputs(out_sep);
     free_pipeline_outputs(out_pad);
     free_pipeline_outputs(out_rvv);
+    free_pipeline_outputs(out_rvv_sep);
 
     printf("\n%s\n", DIVIDER);
     printf(" << Pipeline Complete >>\n");

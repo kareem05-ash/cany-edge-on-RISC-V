@@ -378,5 +378,26 @@ struct RvvTimingResult {
  */
 void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
                       TimingResult results[7], PipelineOutputs &out);
-                      
+
+/**
+ * @brief Run the RVV-optimised pipeline with the separable Gaussian stage.
+ *
+ * Identical to run_pipeline_rvv() except Stage 0 calls gaussian_blur_rvv_sep()
+ * (two strip-mined 1-D passes) instead of gaussian_blur_rvv() (2-D padded).
+ * This reduces MACs per output pixel from 25 to 10, producing a ~2.5× speedup
+ * on QEMU where instruction count (not cache behaviour) drives timing.
+ *
+ * Stage 0 name in results[].name is "Gaussian (RVV Sep)" to distinguish from
+ * the existing "Gaussian (RVV)" entry in run_pipeline_rvv() tables.
+ *
+ * @param src     Input grayscale image.
+ * @param W       Image width in pixels.
+ * @param H       Image height in pixels.
+ * @param n_iter  Number of timed iterations.
+ * @param results Output array of 7 TimingResult structs (caller-allocated).
+ * @param out     Output buffers — heap-allocated; caller frees with free_pipeline_outputs().
+ */
+void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
+                           TimingResult results[7], PipelineOutputs &out);
+
 #endif // TOOLS_H
