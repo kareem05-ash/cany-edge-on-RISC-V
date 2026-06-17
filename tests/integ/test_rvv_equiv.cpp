@@ -23,6 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include "gaussian.h"
+#include "tools.h"
 #include "mag_dir.h"
 #include "sobel.h"
 #include <cassert>
@@ -31,9 +32,15 @@
 #include <cstdlib>
 #include <cstring>
 
+#ifdef __riscv
+#include "gaussian_rvv.h"
+#include "sobel_rvv.h"
+#endif
+
 static const int W = 100;
 static const int H = 75;
 static const int N = W * H;
+
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,19 +153,82 @@ static void test_direction_range() {
     printf("PASS  direction_range    (100x75)\n");
 }
 
+// ── Test 5: Gaussian RVV equivalence ─────────────────────────────────────────
+#ifdef __riscv
+static void test_gaussian_rvv_equiv() {
+    Image src = gen_gradient_ramp(W, H);
+
+    Image dst_scalar(W, H);
+    Image dst_rvv(W, H);
+
+    gaussian_blur_padded(src, dst_scalar);
+    gaussian_blur_rvv(src, dst_rvv);
+
+    const int R = GAUSS_RADIUS;
+    int mismatches = 0;
+    for (int y = R; y < H - R; ++y)
+        for (int x = R; x < W - R; ++x)
+            if (std::abs(absdiff(dst_scalar(y, x), dst_rvv(y, x))) > 1)
+                ++mismatches;
+
+    assert(mismatches == 0 && "Gaussian RVV vs scalar: interior mismatch > 1 LSB");
+    printf("PASS  gaussian_rvv_equiv (scalar vs RVV, 100x75, +-1 LSB)\n");
+}
+#endif
+
+// ── Test 6: Sobel RVV equivalence ────────────────────────────────────────────
+#ifdef __riscv
+static void test_sobel_rvv_equiv() {
+    // 100x75 gradient image forces strip-mining tail case
+    Image src = gen_gradient_ramp(W, H);
+    Image blurred(W, H);
+    gaussian_blur_padded(src, blurred);
+
+    int16_t *Gx_s = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gy_s = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gx_r = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+    int16_t *Gy_r = static_cast<int16_t *>(aligned_alloc(64, N * sizeof(int16_t)));
+
+    sobel(blurred, Gx_s, Gy_s);
+    sobel_rvv(blurred, Gx_r, Gy_r);
+
+    // Sobel is pure integer — exact match required (no rounding)
+    int mismatches = 0;
+    for (int i = 0; i < N; ++i) {
+        if (Gx_s[i] != Gx_r[i]) ++mismatches;
+        if (Gy_s[i] != Gy_r[i]) ++mismatches;
+    }
+
+    assert(mismatches == 0 && "Sobel RVV vs scalar: Gx/Gy mismatch (must be exact)");
+    printf("PASS  sobel_rvv_equiv    (scalar vs RVV, 100x75, exact match)\n");
+
+    free(Gx_s); free(Gy_s);
+    free(Gx_r); free(Gy_r);
+}
+#endif
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 int main() {
-    printf("\n=== QEMU-side Scalar Baseline Tests (Phase 5) ===\n");
+    printf("\n=== QEMU-side Scalar Baseline + RVV Equivalence Tests ===\n");
     printf("Image size: %dx%d (non-power-of-two, forces strip-mining tail)\n\n", W, H);
 
-    test_gaussian_equiv();
-    test_sobel_uniform();
-    test_magnitude_nonzero();
-    test_direction_range();
+    int passed = 0;
 
-    printf("\n=== All scalar baseline tests PASSED ===\n");
-    printf("Phase 6 TODO: add rvv_gaussian(), rvv_magnitude() calls above\n");
-    printf("              and compare their output against scalar within +-1 LSB\n\n");
+    test_gaussian_equiv();   ++passed;
+    test_sobel_uniform();    ++passed;
+    test_magnitude_nonzero(); ++passed;
+    test_direction_range();  ++passed;
+
+#ifdef __riscv
+    test_gaussian_rvv_equiv(); ++passed;
+    test_sobel_rvv_equiv();    ++passed;
+    printf("\nRVV tests run at current VLEN (set via -cpu rv64,v=true,vlen=<N>)\n");
+    printf("Run at VLEN=128, 256, 512 to verify vector-length agnosticism.\n");
+#else
+    printf("\n[RVV tests skipped — host build, __riscv not defined]\n");
+#endif
+
+    printf("\n=== %d tests PASSED ===\n\n", passed);
     return 0;
 }

@@ -341,34 +341,86 @@ if [[ -f "$PROJECT_ROOT/Makefile" ]]; then
             record_fail "make target: $target" "Target missing from Makefile"
         fi
     }
-    check_target "all"
-    check_target "canny_rv"
-    check_target "run_target"
+    check_target "help"
     check_target "run_host"
+    check_target "run_target"
     check_target "run_all"
-    check_target "bench_all"
-    check_target "sweep"
-    check_target "autovec"
-    check_target "count_vec_instructions"
+    check_target "canny_rv"
+    check_target "verify_rvv"
+    check_target "test"
     check_target "test_img_io"
     check_target "test_gaussian"
+    check_target "test_gaussian_rvv"
     check_target "test_sobel"
+    check_target "test_sobel_rvv"
     check_target "test_mag_dir"
-    check_target "test_sobel_rv"
+    check_target "test_mag_dir_rvv"
     check_target "test_edge_refinement"
-    check_target "test"
-    check_target "clean"
-    check_target "clean_imgs"
-    check_target "clean_docs"
-    check_target "clean_all"
+    check_target "test_rvv_equiv"
+    check_target "test_vlen_sweep"
+    check_target "sweep"
+    check_target "autovec"
+    check_target "count_vec"
+    check_target "vlen_sweep"
+    check_target "lmul_sweep"
     check_target "format"
-    check_target "package"
     check_target "docs"
-    check_target "help"
+    check_target "package"
+    check_target "clean_bin"
+    check_target "clean_imgs"
+    check_target "clean"
+    check_target "setup"
+    check_target "verify"
 else
     for t in test canny_rv run_target sweep clean; do
         record_fail "make target: $t (Makefile not found)"
     done
+fi
+
+# ==============================================================================
+#  CHECK 9 — Phase 6 Runtime Checks
+#  These go beyond target existence — they actually build and run.
+# ==============================================================================
+section "9. Phase 6 Runtime Checks"
+
+# ── 9a: test_gaussian_rvv unit test (host-side, GoogleTest) ────────────────────
+echo "--- Checking gaussian_rvv unit test ---"
+if make -C "$PROJECT_ROOT" test_gaussian_rvv 2>&1 | tail -5; then
+    record_pass "test_gaussian_rvv unit test"
+else
+    record_fail "test_gaussian_rvv unit test" "make test_gaussian_rvv failed — check src/gaussian_rvv.cpp"
+fi
+
+# ── 9b: test_sobel_rvv unit test (host-side, GoogleTest) ────────────────────
+echo "--- Checking sobel_rvv unit test ---"
+if make -C "$PROJECT_ROOT" test_sobel_rvv 2>&1 | tail -5; then
+    record_pass "test_sobel_rvv unit test"
+else
+    record_fail "test_sobel_rvv unit test" "make test_sobel_rvv failed — check src/sobel_rvv.cpp"
+fi
+
+# ── 9c: test_mag_dir_rvv unit test (host-side, GoogleTest) ────────────────────
+echo "--- Checking mag_dir_rvv unit test ---"
+if make -C "$PROJECT_ROOT" test_mag_dir_rvv 2>&1 | tail -5; then
+    record_pass "test_mag_dir_rvv unit test"
+else
+    record_fail "test_mag_dir_rvv unit test" "make test_mag_dir_rvv failed — check src/mag_dir_rvv.cpp"
+fi
+
+# ── 9d: VLEN sweep correctness test binary (build only — QEMU required to run) ─
+echo "--- Checking VLEN sweep correctness test (build only) ---"
+if make -C "$PROJECT_ROOT" build/riscv/test_vlen_sweep 2>&1 | tail -5; then
+    record_pass "build/riscv/test_vlen_sweep compiles"
+else
+    record_fail "build/riscv/test_vlen_sweep build" "make build/riscv/test_vlen_sweep failed"
+fi
+
+# ── 9e: Python plot smoke test ────────────────────────────────────────────────
+echo "--- Checking Python plot smoke test ---"
+if python3 "$PROJECT_ROOT/tools/python/plot_all.py" --phase 6 --out-dir /tmp/plots_verify 2>&1 | tail -5; then
+    record_pass "plot_all.py --phase 6 smoke test"
+else
+    record_fail "plot_all.py --phase 6 smoke test" "plot_all.py crashed — all data-absent paths must be handled gracefully"
 fi
 
 # ==============================================================================

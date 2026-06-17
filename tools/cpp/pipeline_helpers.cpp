@@ -1,3 +1,4 @@
+#include "mag_dir_rvv.h"
 #include "edge_refinement.h"
 #include "gaussian.h"
 #include "img_io.h"
@@ -10,22 +11,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifdef __riscv
+#include "gaussian_rvv.h"
+#include "sobel_rvv.h"
+#endif
 
 // ====================================================================================================
 // run_pipeline()
-// Runs the full 7-stage Canny pipeline on src.
-// Measures per-stage timing averaged over n_iter iterations.
-//
-// Parameters:
-//   src        - input grayscale image
-//   W, H       - image dimensions
-//   n_iter     - number of timing iterations (averaged)
-//   gauss_mode - 0 = standard 2D kernel
-//                1 = separable 1D kernel
-//                2 = padded (auto-vectorization friendly)
-//   mag_L1     - true = L1 magnitude, false = L2
-//   results[7] - output: per-stage timing (7 stages)
-//   out        - output: blurred image + mag + refined (caller owns, call free_pipeline_outputs)
 // ====================================================================================================
 void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bool mag_L1,
                   TimingResult results[7], PipelineOutputs &out) {
@@ -81,13 +73,12 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[4].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 5] Double Thresholding ─────────────────────────────────────
-    // Thresholds derived from max magnitude — computed once, outside timing loop
     uint8_t max_mag = 0;
     for (int i = 0; i < W * H; i++)
         if (mag[i] > max_mag)
             max_mag = mag[i];
     uint8_t t_high = (uint8_t)(max_mag * 0.4f);
-    uint8_t t_low = (uint8_t)(t_high * 0.5f);
+    uint8_t t_low  = (uint8_t)(t_high  * 0.5f);
 
     uint8_t *dthr_out = new uint8_t[W * H];
     timer_start(&t);
@@ -105,11 +96,11 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    out.blurred = blurred;
-    out.mag = mag;
+    out.blurred     = blurred;
+    out.mag         = mag;
     out.out_refined = hys_out;
 
-    // ── Cleanup local buffers ─────────────────────────────────────────────
+    // ── Cleanup ───────────────────────────────────────────────────────────
     delete[] Gx;
     delete[] Gy;
     delete[] dir;
@@ -118,15 +109,10 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
 }
 
 // ====================================================================================================
-// save_outputs() — host only (#ifndef __riscv)
-// Saves the 4 key visualization images for one pipeline method:
-//
-//   src         -> imgs/<name>_<W>x<H><suffix>_src.raw
-//   blurred     -> imgs/<name>_<W>x<H><suffix>_blurred.raw
-//   mag         -> imgs/<name>_<W>x<H><suffix>_mag.raw      (before refinement)
-//   out_refined -> imgs/<name>_<W>x<H><suffix>_refined.raw  (final edge map)
-//
-// suffix differentiates methods e.g. "" / "_separable" / "_padded"
+// run_pipeline_rvv()
+// Same structure as run_pipeline() but with RVV-annotated stage names.
+// Gaussian and Sobel use scalar fallbacks until RVV implementations are ready.
+// Magnitude stays scalar — RVV not applied for this stage.
 // ====================================================================================================
 #ifndef __riscv
 void save_outputs(const char *img_name, int W, int H, const char *suffix, const Image &src,
@@ -158,4 +144,96 @@ void free_pipeline_outputs(PipelineOutputs &p) {
     p.blurred = nullptr;
     p.mag = nullptr;
     p.out_refined = nullptr;
+}
+
+void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
+                      TimingResult results[7], PipelineOutputs &out) {
+    Timer t;
+
+    // ── [Stage 0] Gaussian (scalar fallback until gaussian_rvv is ready) ──
+    Image *blurred = new Image(W, H);
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+#ifdef __riscv
+        gaussian_blur_rvv(src, *blurred);
+#else
+        gaussian_blur_padded(src, *blurred);
+#endif
+    results[0].name    = "Gaussian (RVV)";
+    results[0].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 1] Sobel (scalar fallback until sobel_rvv is ready) ────────
+    int16_t *Gx = new int16_t[W * H];
+    int16_t *Gy = new int16_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+    #ifdef __riscv
+        sobel_rvv(*blurred, Gx, Gy);
+    #else
+        sobel(*blurred, Gx, Gy);
+    #endif
+    results[1].name    = "Sobel gradient (RVV)";
+    results[1].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 2] Magnitude (RVV L1) ─────────────────────────────────────
+    uint8_t *mag = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+    #ifdef __riscv
+        compute_magnitude_rvv(Gx, Gy, mag, W, H);
+    #else
+        compute_magnitude(Gx, Gy, mag, W, H, MagMethod::L1);
+    #endif
+    results[2].name    = "Magnitude (RVV L1)";
+    results[2].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 3] Direction — scalar (not hot) ────────────────────────────
+    uint8_t *dir = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+        compute_direction(Gx, Gy, dir, W, H);
+    results[3].name    = "Direction (scalar)";
+    results[3].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 4] NMS — scalar ────────────────────────────────────────────
+    uint8_t *nms_out = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+        nms(mag, dir, nms_out, W, H);
+    results[4].name    = "Non-Maximum Suppression (scalar)";
+    results[4].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 5] Double Thresholding — scalar ────────────────────────────
+    uint8_t max_mag = 0;
+    for (int i = 0; i < W * H; i++)
+        if (mag[i] > max_mag) max_mag = mag[i];
+    uint8_t t_high = (uint8_t)(max_mag * 0.4f);
+    uint8_t t_low  = (uint8_t)(t_high  * 0.5f);
+
+    uint8_t *dthr_out = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+        double_threshold(nms_out, dthr_out, W, H, t_low, t_high);
+    results[5].name    = "Double Thresholding (scalar)";
+    results[5].time_us = timer_stop(&t) / n_iter;
+
+    // ── [Stage 6] Hysteresis — scalar ─────────────────────────────────────
+    uint8_t *hys_out = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+        hysteresis(dthr_out, hys_out, W, H);
+    results[6].name    = "Hysteresis (scalar)";
+    results[6].time_us = timer_stop(&t) / n_iter;
+
+    // ── Pass ownership to caller ──────────────────────────────────────────
+    out.blurred     = blurred;
+    out.mag         = mag;
+    out.out_refined = hys_out;
+
+    // ── Cleanup ───────────────────────────────────────────────────────────
+    delete[] Gx;
+    delete[] Gy;
+    delete[] dir;
+    delete[] nms_out;
+    delete[] dthr_out;
 }

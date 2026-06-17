@@ -70,6 +70,23 @@ no division.
 
 ---
 
+## Module Overview
+
+| Module | Header | Source | Phase |
+|--------|--------|--------|-------|
+| Image I/O | `include/img_io.h` | `src/img_io.cpp` | 2 |
+| Gaussian Blur | `include/gaussian.h` | `src/gaussian.cpp` | 2 |
+| Gaussian Blur RVV | `include/gaussian_rvv.h` | `src/gaussian_rvv.cpp` | 6 |
+| Sobel Gradients | `include/sobel.h` | `src/sobel.cpp` | 2 |
+| Sobel Gradients RVV | `include/sobel_rvv.h` | `src/sobel_rvv.cpp` | 6 |
+| Gradient Magnitude RVV | `include/mag_dir_rvv.h` | `src/mag_dir_rvv.cpp` | 6 |
+| Gradient Magnitude & Direction | `include/mag_dir.h` | `src/mag_dir.cpp` | 2 |
+| Edge Refinement | `include/edge_refinement.h` | `src/edge_refinement.cpp` | 2 |
+| Timer | `include/timer.h` | — | 1 |
+| Tools & Reports | `include/tools.h` | `tools/cpp/` | 3–6 |
+
+---
+
 ## Project Phases
 
 | Phase | Description | Status |
@@ -79,8 +96,39 @@ no division.
 | 3 | Unit Tests (GoogleTest host + assert-based QEMU) | ✅ Complete |
 | 4 | Compiler Optimization Sweep (-O0 / -O2 / -O3 / -Os / -Ofast) | ✅ Complete |
 | 5 | Profiling (per-stage timing table, hotspot analysis) | ✅ Satisfied by Phase 2 `main.cpp` |
-| 6 | RVV Intrinsic Optimization | 🔲 Upcoming |
+| 6 | RVV Intrinsic Optimization | ✅ Complete |
 | 7 | Report & Presentation | 🔲 Upcoming |
+
+---
+
+## Phase 6 — RVV Kernel Status
+
+| Stage | RVV Implemented | LMUL | Widening Chain | Notes |
+|--------------|-----------------|------|----------------|-------|
+| Gaussian 5×5 | ✅ Yes | m1/m2/m4 | u8m2 → u16m4 → i32m8 | Three LMUL variants; m2 default |
+| Sobel Gx/Gy | ✅ Yes | m1 | i8m1 → i16m2 | SoA layout; vwmacc |
+| Magnitude L1 | ✅ Yes | m1 | i16m1 → i32m2 | Two-pass: vredmax + normalize |
+| Direction | ❌ Scalar only | — | — | ~8% runtime; Amdahl's Law |
+| NMS | ❌ Scalar only | — | — | Branchy; not worth vectorizing |
+| Thresholding | ❌ Scalar only | — | — | Negligible time share |
+| Hysteresis | ❌ Scalar only | — | — | Graph-traversal; not vectorizable |
+
+> **Amdahl's Law note:** Gaussian + Sobel + Magnitude account for ~75% of total
+> pipeline time. Vectorizing only these three stages yields the theoretical maximum
+> speedup limited by the remaining 25% scalar stages.
+
+---
+
+## Test Targets (Phase 6)
+
+| Make target | What it tests | Runner |
+|---------------------|---------------------------------------------|------------|
+| `test` | All host-side GoogleTest suites | Native g++ |
+| `test_mag_dir_rvv` | Magnitude RVV L1 kernel equivalence | Native g++ |
+| `test_rvv_equiv` | RVV vs scalar at VLEN=128/256/512 | QEMU |
+| `test_vlen_sweep` | Full RVV pipeline VLEN-agnostic proof | QEMU |
+| `lmul_sweep` | Gaussian LMUL=1/2/4 timing at VLEN=256 | QEMU |
+| `vlen_sweep` | Scalar pipeline timing at VLEN=128/256/512 | QEMU |
 
 ---
 
@@ -161,6 +209,25 @@ make docs
 ├── Makefile
 └── docs/               # Generated timing tables and Doxygen output
 ```
+
+## Visualization (`tools/python/`)
+
+| Script | Phase | Status | Description |
+|--------|-------|--------|-------------|
+| `plot_all.py` | 6+ | Implemented | Top-level dispatcher; `--phase 6` for Phase 6 only |
+| `plot1_speedup.py` | 6 | Implemented | Scalar / Auto-vec / RVV grouped bar |
+| `plot2_pie.py` | 6 | Implemented | Pipeline bottleneck pie (scalar baseline) |
+| `plot3_before_after.py` | 6 | Implemented | Hot stages before/after |
+| `plot4_autovec_rvv.py` | 6 | Implemented | Compiler -O3 vs manual RVV |
+| `plot5_lmul_sweep.py` | 6 | Implemented | Gaussian LMUL sweep |
+| `plot6_pipeline.py` | 7 | **Stub** | 4-panel image transform |
+| `plot7_size_sweep.py` | 7 | **Stub** | Time vs resolution |
+| `plot8_opt_levels.py` | 7 | **Stub** | -O0 through -Ofast |
+| `plot10_stacked.py` | 7 | **Stub** | Stacked stage contribution |
+| `raw_loader.py` | — | Utility | Raw image I/O helper |
+| `see_img.py` | — | Utility | Display raw images via matplotlib |
+
+Run from project root: `python3 tools/python/plot_all.py`
 
 ---
 

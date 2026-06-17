@@ -258,7 +258,10 @@ jobs:
             -std=c++17 -Wall -Wextra -O2 -march=rv64gcv -mabi=lp64d -static \
             -Iinclude \
             src/img_io.cpp src/gaussian.cpp src/sobel.cpp \
-            src/mag_dir.cpp tests/integ/test_rvv_equiv.cpp \
+            src/mag_dir.cpp src/mag_dir_rvv.cpp \
+            tools/cpp/gen_imgs.cpp \
+            src/gaussian_rvv.cpp src/sobel_rvv.cpp \
+            tests/integ/test_rvv_equiv.cpp \
             -o build/riscv/test_rvv_equiv \
         )
 
@@ -270,6 +273,19 @@ jobs:
 
     - name: RVV equivalence test — VLEN=512
       run: qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/test_rvv_equiv
+
+    # ── VLEN sweep correctness (vector-length-agnostic proof) ────────────────
+    - name: Build VLEN sweep correctness binary
+      run: make build/riscv/test_vlen_sweep
+
+    - name: VLEN sweep correctness test — VLEN=128
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=128 build/riscv/test_vlen_sweep
+
+    - name: VLEN sweep correctness test — VLEN=256
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=256 build/riscv/test_vlen_sweep
+
+    - name: VLEN sweep correctness test — VLEN=512
+      run: qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/test_vlen_sweep
 
     # ── Optimization sweep ────────────────────────────────────────────────────
     # 256×256 intentionally — keeps CI fast. Use 512×512 locally.
@@ -284,6 +300,16 @@ jobs:
         name: bench-results-${{ github.sha }}
         path: docs/bench_results.txt
         retention-days: 30
+
+    # ── Python visualization smoke test ──────────────────────────────────────
+    # Runs plot_all.py --phase 6 with dummy/absent data files.
+    # Must not crash — graceful skip on missing files is the contract.
+    - name: Python plot smoke test (Phase 6)
+      run: |
+        python3 -m pip install --break-system-packages matplotlib numpy
+        python3 tools/python/plot_all.py --phase 6 --out-dir /tmp/plots
+        echo "Plots written:"
+        ls -lh /tmp/plots/*.png 2>/dev/null || echo "(no plots — all data files absent, skip is correct)"
 
 # ==============================================================================
 #  JOB 2 — verify-env
