@@ -349,13 +349,17 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    out.blurred     = blurred;
-    out.mag         = mag;
-    out.out_refined = hys_out;
+    uint8_t *blurred_buf = new uint8_t[W * H];
+    memcpy(blurred_buf, blurred->data, W * H);
+    delete blurred;
+
+    out.blurred   = blurred_buf;
+    out.Gx        = Gx;
+    out.Gy        = Gy;
+    out.magnitude = mag;
+    out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] Gx;
-    delete[] Gy;
     delete[] dir;
     delete[] nms_out;
     delete[] dthr_out;
