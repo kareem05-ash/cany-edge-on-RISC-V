@@ -25,6 +25,7 @@
 #include "gaussian.h"
 #include "gaussian_rvv.h"
 #include "mag_dir.h"
+#include "mag_dir_rvv.h"
 #include "sobel.h"
 #include "sobel_rvv.h"
 
@@ -170,7 +171,7 @@ static int test_one_size(int W, int H)
     // compute_magnitude is scalar on both paths intentionally:
     // any magnitude difference comes from Sobel differences only,
     // making it easier to isolate which stage has a bug.
-    compute_magnitude(Gx_v, Gy_v, mag_v, W, H, MagMethod::L1);
+    compute_magnitude_rvv(Gx_v, Gy_v, mag_v, W, H);
 
     // ── Compare stage by stage ────────────────────────────────────────────
     int total_bad = 0;
