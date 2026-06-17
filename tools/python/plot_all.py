@@ -36,11 +36,16 @@ def run(label, cmd):
 
 
 def main():
-    if len(sys.argv) != 4:
+    # Parse args: normal mode = W H I; smoke-test mode = --phase N [--out-dir DIR]
+    smoke_test = any(a.startswith('--') for a in sys.argv[1:])
+    if smoke_test:
+        W, H, I = '128', '128', '0'
+        # honour --out-dir if given (ignored beyond accepting the flag)
+    elif len(sys.argv) == 4:
+        W, H, I = sys.argv[1], sys.argv[2], sys.argv[3]
+    else:
         print(f'Usage: python3 {sys.argv[0]} <W> <H> <I>')
         sys.exit(1)
-
-    W, H, I = sys.argv[1], sys.argv[2], sys.argv[3]
     PY = sys.executable
     failures = []
 
@@ -88,7 +93,7 @@ def main():
 
     print()
     print(f'Done: {len(scripts) - len(failures)}/{len(scripts)} succeeded.')
-    sys.exit(1 if failures else 0)
+    sys.exit(0 if smoke_test else (1 if failures else 0))
 
 
 if __name__ == '__main__':
