@@ -1,132 +1,109 @@
-#!/usr/bin/env python3
 """
-plot1_speedup.py — Speedup comparison (Scalar / Auto-vec / RVV)
-
-Data source: docs/timing_padded.txt (scalar + auto-vec) and docs/timing_rvv.txt (RVV)
-Output: {out_dir}/speedup_comparison.png
+plot1_speedup.py — Speedup comparison: Scalar / Auto-vec / RVV grouped bar.
+Phase 6 — fully implemented.
 """
 
-import os
+import os, re
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+STAGES = ["Gaussian","Sobel","Magnitude","Direction","NMS","DblThresh","Hysteresis"]
+RVV_STAGES = {"Gaussian", "Sobel", "Magnitude"}  # stages with actual RVV kernels
 
-STAGES = [
-    "Gaussian",
-    "Sobel",
-    "Magnitude",
-    "Direction",
-    "NMS",
-    "DblThresh",
-    "Hysteresis",
+_ROW_RE = re.compile(r"^\s*\d+\)\s+(.+?)\s{2,}([\d.]+)", re.MULTILINE)
+_STAGE_PATTERNS = [
+    (re.compile(r"gaussian",           re.I), "Gaussian"),
+    (re.compile(r"sobel",              re.I), "Sobel"),
+    (re.compile(r"magnitude",          re.I), "Magnitude"),
+    (re.compile(r"direction",          re.I), "Direction"),
+    (re.compile(r"non.?max|nms",       re.I), "NMS"),
+    (re.compile(r"double.?thresh|dbl", re.I), "DblThresh"),
+    (re.compile(r"hysteresis",         re.I), "Hysteresis"),
 ]
 
-COLORS = {
-    "Scalar": "#4C72B0",
-    "Auto-vec": "#55A868",
-    "RVV": "#DD8452",
-}
+def _canonical(raw_name):
+    for pat, canon in _STAGE_PATTERNS:
+        if pat.search(raw_name): return canon
+    return None
 
-
-def parse_timing_file(path: str) -> dict[str, float] | None:
-    """Read a timing table and return {stage: us}."""
-    if not os.path.exists(path):
-        print(f"Warning: {path} not found. Skipping.")
-        return None
-
+def _parse_block(text):
     result = {}
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("-"):
-                continue
-            if "|" not in line:
-                continue
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) >= 2:
-                stage = parts[0]
-                time_str = parts[1].replace("µs", "").replace("us", "").strip()
-                try:
-                    result[stage] = float(time_str)
-                except ValueError:
-                    continue
-    return result if result else None
+    for raw_name, value_str in _ROW_RE.findall(text):
+        canon = _canonical(raw_name)
+        if canon and canon not in result:
+            result[canon] = float(value_str)
+    return result
 
+def parse_timing_file(path, block_keyword):
+    if not os.path.isfile(path):
+        print(f"  WARNING: file not found: {path}"); return None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    keyword_lc = block_keyword.lower()
+    chunks = re.split(r"\[Step \d+\]", text)
+    fallback = None
+    for chunk in chunks:
+        parsed = _parse_block(chunk)
+        if not parsed: continue
+        for raw_name, _ in _ROW_RE.findall(chunk):
+            if keyword_lc in raw_name.lower() and _canonical(raw_name) == "Gaussian":
+                return parsed
+        if "Gaussian" in parsed: fallback = parsed
+    return fallback
 
-def generate(
-    out_dir: str = "docs",
-    padded_file: str = "docs/timing_padded.txt",
-    rvv_file: str = "docs/timing_rvv.txt",
-) -> None:
-    """Generate plot 1. Skips gracefully if input files are absent."""
-    scalar_auto = parse_timing_file(padded_file)
-    rvv = parse_timing_file(rvv_file)
+def generate(out_dir="docs", padded_file="docs/timing_padded.txt", rvv_file="docs/timing_rvv.txt"):
+    # scalar = 2D kernel block (unoptimized baseline)
+    scalar  = parse_timing_file(padded_file, "2d kernel")
+    # autovec = RVV block from scalar build (compiler-only, no manual RVV)
+    autovec = parse_timing_file(padded_file, "rvv")
+    # rvv = RVV block from RVV build (manual intrinsics)
+    rvv     = parse_timing_file(rvv_file,    "rvv")
 
-    if scalar_auto is None or rvv is None:
-        print("[plot1] Missing data files, skipping speedup_comparison.png")
-        return
+    if scalar is None or autovec is None or rvv is None:
+        print("  [plot1] Skipping — input files missing."); return
 
-    # Build arrays in STAGES order
-    scalar_vals = []
-    auto_vals = []
-    rvv_vals = []
-    for s in STAGES:
-        scalar_vals.append(scalar_auto.get(s, 0.0))
-        auto_vals.append(scalar_auto.get(s, 0.0))  # same file has both scalar & auto-vec?
-        rvv_vals.append(rvv.get(s, 0.0))
+    sc = np.array([scalar.get(s,  float("nan")) for s in STAGES])
+    av = np.array([autovec.get(s, float("nan")) for s in STAGES])
+    rv = np.array([rvv.get(s,     float("nan")) for s in STAGES])
 
-    # NOTE: If timing_padded.txt only contains scalar, auto-vec may be in bench_results.txt.
-    # For now we assume timing_padded.txt holds scalar baseline (padded) and auto-vec is
-    # extracted from the same file or another source. If auto-vec is missing, duplicate scalar.
-    # In a real setup you might parse bench_results.txt -O3 here. We keep it simple:
-    # If the file has "Auto-vec" or "AutoVec" keys, use them; otherwise fall back to scalar.
-    auto_vec_found = any("Auto" in k or "auto" in k for k in scalar_auto.keys())
-    if auto_vec_found:
-        auto_vals = [scalar_auto.get(f"{s} (auto)", scalar_auto.get(s, 0.0)) for s in STAGES]
+    # For non-RVV stages, RVV bar = autovec (no RVV kernel exists)
+    for i, s in enumerate(STAGES):
+        if s not in RVV_STAGES:
+            rv[i] = av[i]
 
-    x = np.arange(len(STAGES))
-    width = 0.25
+    x = np.arange(len(STAGES)); width = 0.25
+    fig, ax = plt.subplots(figsize=(13, 6))
+    colors = {"scalar": "#4C72B0", "autovec": "#55A868", "rvv": "#DD8452"}
+    ax.bar(x - width,     sc, width, label="Scalar",        color=colors["scalar"])
+    ax.bar(x,             av, width, label="Auto-vec (-O3)", color=colors["autovec"])
+    ax.bar(x + width,     rv, width, label="RVV (manual)",  color=colors["rvv"])
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    for i, s in enumerate(STAGES):
+        if s in RVV_STAGES and not np.isnan(sc[i]) and rv[i] > 0:
+            speedup = sc[i] / rv[i]
+            ax.text(x[i] + width, rv[i] * 1.05, f"x{speedup:.1f}",
+                    ha="center", va="bottom", fontsize=8.5, color="#8B0000", fontweight="bold")
 
-    bars1 = ax.bar(x - width, scalar_vals, width, label="Scalar", color=COLORS["Scalar"])
-    bars2 = ax.bar(x, auto_vals, width, label="Auto-vec", color=COLORS["Auto-vec"])
-    bars3 = ax.bar(x + width, rvv_vals, width, label="RVV", color=COLORS["RVV"])
-
-    # Speedup labels above RVV bars
-    for i, (sv, rv) in enumerate(zip(scalar_vals, rvv_vals)):
-        if rv > 0:
-            speedup = sv / rv
-            ax.text(
-                x[i] + width,
-                rv + max(scalar_vals) * 0.02,
-                f"×{speedup:.1f}",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-                fontweight="bold",
-            )
-
-    ax.set_ylabel("Time (µs)")
-    ax.set_title("Speedup: Scalar / Auto-vec / RVV (VLEN=256)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(STAGES, rotation=30, ha="right")
-    ax.legend()
-    ax.set_ylim(0, max(max(scalar_vals), max(auto_vals), max(rvv_vals)) * 1.2)
-
-    # Optional log scale if span > 10x
-    max_val = max(max(scalar_vals), max(auto_vals), max(rvv_vals))
-    min_val = min([v for v in (scalar_vals + auto_vals + rvv_vals) if v > 0], default=1.0)
-    if max_val / min_val > 10:
-        ax.set_yscale("log")
-        ax.set_ylim(min_val * 0.5, max_val * 2)
-
-    plt.tight_layout()
+    ax.set_yscale("log")
+    ax.set_xlabel("Pipeline Stage", fontsize=12)
+    ax.set_ylabel("Time (µs) — log scale", fontsize=12)
+    ax.set_title("Speedup: Scalar / Auto-vec / RVV (VLEN=256)", fontsize=14, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(STAGES, rotation=20, ha="right", fontsize=10)
+    ax.legend(fontsize=10)
+    ax.yaxis.grid(True, which="both", linestyle="--", alpha=0.5); ax.set_axisbelow(True)
+    fig.tight_layout()
+    os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "speedup_comparison.png")
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
-    print(f"[plot1] Wrote {out_path}")
-
+    fig.savefig(out_path, dpi=150); plt.close(fig)
+    print(f"  [plot1] Saved -> {out_path}")
 
 if __name__ == "__main__":
-    generate()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", default="docs")
+    ap.add_argument("--padded-file", default="docs/timing_padded.txt")
+    ap.add_argument("--rvv-file", default="docs/timing_rvv.txt")
+    args = ap.parse_args()
+    generate(args.out_dir, args.padded_file, args.rvv_file)

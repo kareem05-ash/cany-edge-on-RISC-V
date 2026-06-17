@@ -1,96 +1,93 @@
-#!/usr/bin/env python3
 """
-plot3_before_after.py — Hot stages: Before (Scalar) vs After (RVV)
-
-Data source: docs/timing_padded.txt (scalar) and docs/timing_rvv.txt (RVV)
-Output: {out_dir}/before_after.png
+plot3_before_after.py — Hot stages before (Scalar) vs after (RVV).
+Phase 6 — fully implemented.
+Data: docs/timing_padded.txt -> "padded" block = scalar baseline
+      docs/timing_rvv.txt    -> "rvv"    block = RVV results
 """
-
-import os
+import os, re
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 HOT_STAGES = ["Gaussian", "Sobel", "Magnitude"]
+_ROW_RE = re.compile(r"^\s*\d+\)\s+(.+?)\s{2,}([\d.]+)", re.MULTILINE)
+_STAGE_PATTERNS = [
+    (re.compile(r"gaussian",           re.I), "Gaussian"),
+    (re.compile(r"sobel",              re.I), "Sobel"),
+    (re.compile(r"magnitude",          re.I), "Magnitude"),
+    (re.compile(r"direction",          re.I), "Direction"),
+    (re.compile(r"non.?max|nms",       re.I), "NMS"),
+    (re.compile(r"double.?thresh|dbl", re.I), "DblThresh"),
+    (re.compile(r"hysteresis",         re.I), "Hysteresis"),
+]
 
+def _canonical(raw_name):
+    for pat, canon in _STAGE_PATTERNS:
+        if pat.search(raw_name): return canon
+    return None
 
-def parse_timing_file(path: str) -> dict[str, float] | None:
-    """Read a timing table and return {stage: us}."""
-    if not os.path.exists(path):
-        print(f"Warning: {path} not found. Skipping.")
-        return None
-
+def _parse_block(text):
     result = {}
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("-"):
-                continue
-            if "|" not in line:
-                continue
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) >= 2:
-                stage = parts[0]
-                time_str = parts[1].replace("µs", "").replace("us", "").strip()
-                try:
-                    result[stage] = float(time_str)
-                except ValueError:
-                    continue
-    return result if result else None
+    for raw_name, value_str in _ROW_RE.findall(text):
+        canon = _canonical(raw_name)
+        if canon and canon not in result:
+            result[canon] = float(value_str)
+    return result
 
+def parse_timing_file(path, block_keyword):
+    if not os.path.isfile(path):
+        print(f"  [plot3] WARNING: file not found: {path}"); return None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    keyword_lc = block_keyword.lower()
+    chunks = re.split(r"\[Step \d+\]", text)
+    fallback = None
+    for chunk in chunks:
+        parsed = _parse_block(chunk)
+        if not parsed: continue
+        for raw_name, _ in _ROW_RE.findall(chunk):
+            if keyword_lc in raw_name.lower() and _canonical(raw_name) == "Gaussian":
+                return parsed
+        if "Gaussian" in parsed: fallback = parsed
+    return fallback
 
-def generate(
-    out_dir: str = "docs",
-    padded_file: str = "docs/timing_padded.txt",
-    rvv_file: str = "docs/timing_rvv.txt",
-) -> None:
-    """Generate plot 3."""
-    scalar = parse_timing_file(padded_file)
-    rvv = parse_timing_file(rvv_file)
-
+def generate(out_dir="docs", padded_file="docs/timing_padded.txt", rvv_file="docs/timing_rvv.txt"):
+    scalar = parse_timing_file(padded_file, "2d kernel")
+    rvv    = parse_timing_file(rvv_file,    "rvv")
     if scalar is None or rvv is None:
-        print("[plot3] Missing data files, skipping before_after.png")
-        return
-
-    scalar_vals = [scalar.get(s, 0.0) for s in HOT_STAGES]
-    rvv_vals = [rvv.get(s, 0.0) for s in HOT_STAGES]
-
-    x = np.arange(len(HOT_STAGES))
-    width = 0.35
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    bars1 = ax.bar(x - width / 2, scalar_vals, width, label="Scalar", color="#4C72B0")
-    bars2 = ax.bar(x + width / 2, rvv_vals, width, label="RVV", color="#DD8452")
-
-    # Annotate speedup in the center gap
-    for i, (sv, rv) in enumerate(zip(scalar_vals, rvv_vals)):
-        if rv > 0:
-            speedup = sv / rv
-            ax.text(
-                x[i],
-                max(sv, rv) + max(scalar_vals) * 0.05,
-                f"×{speedup:.1f}",
-                ha="center",
-                va="bottom",
-                fontsize=10,
-                fontweight="bold",
-                color="#333333",
-            )
-
-    ax.set_ylabel("Time (µs)")
-    ax.set_title("Hot Stages: Before (Scalar) vs After (RVV)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(HOT_STAGES)
-    ax.legend()
-    ax.set_ylim(0, max(max(scalar_vals), max(rvv_vals)) * 1.3)
-
-    plt.tight_layout()
+        print("  [plot3] Skipping — input files missing."); return
+    sc = [scalar.get(s, 0) for s in HOT_STAGES]
+    rv = [rvv.get(s,    0) for s in HOT_STAGES]
+    x = np.arange(len(HOT_STAGES)); width = 0.35
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars_sc = ax.bar(x - width/2, sc, width, label="Scalar (Before)", color="#4C72B0")
+    bars_rv = ax.bar(x + width/2, rv, width, label="RVV (After)",     color="#DD8452")
+    top = max(max(sc), max(rv))
+    for bar in list(bars_sc) + list(bars_rv):
+        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+top*0.01,
+                f"{bar.get_height():,.0f}", ha="center", va="bottom", fontsize=9)
+    for i,(s,r) in enumerate(zip(sc,rv)):
+        if r>0:
+            ax.annotate(f"x{s/r:.1f} speedup", xy=(x[i], max(s,r)*0.55),
+                ha="center", va="center", fontsize=10, fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#555", lw=0.8))
+    ax.set_ylabel("Time (µs)", fontsize=12)
+    ax.set_xlabel("Pipeline Stage", fontsize=12)
+    ax.set_title("Hot Stages: Before (Scalar) vs After (RVV)", fontsize=14, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(HOT_STAGES, fontsize=11)
+    ax.legend(fontsize=10); ax.yaxis.grid(True, linestyle="--", alpha=0.5); ax.set_axisbelow(True)
+    fig.tight_layout()
+    os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "before_after.png")
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
-    print(f"[plot3] Wrote {out_path}")
-
+    fig.savefig(out_path, dpi=150); plt.close(fig)
+    print(f"  [plot3] Saved -> {out_path}")
 
 if __name__ == "__main__":
-    generate()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", default="docs")
+    ap.add_argument("--padded-file", default="docs/timing_padded.txt")
+    ap.add_argument("--rvv-file", default="docs/timing_rvv.txt")
+    args = ap.parse_args()
+    generate(args.out_dir, args.padded_file, args.rvv_file)

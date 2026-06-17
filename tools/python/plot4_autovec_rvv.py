@@ -1,153 +1,100 @@
-#!/usr/bin/env python3
 """
-plot4_autovec_rvv.py — Compiler Auto-vec (-O3) vs Manual RVV Intrinsics
-
-Data source:
-  docs/bench_results.txt — parse the -O3 block for per-stage times (auto-vec)
-  docs/timing_rvv.txt — RVV times
-Output: {out_dir}/autovec_vs_rvv.png
+plot4_autovec_rvv.py — Compiler Auto-vec (-O3) vs Manual RVV Intrinsics.
+Phase 6 — fully implemented.
 """
-
-import os
-import re
+import os, re
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-STAGES = [
-    "Gaussian",
-    "Sobel",
-    "Magnitude",
-    "Direction",
-    "NMS",
-    "DblThresh",
-    "Hysteresis",
+STAGES = ["Gaussian","Sobel","Magnitude","Direction","NMS","DblThresh","Hysteresis"]
+_ROW_RE = re.compile(r"^\s*\d+\)\s+(.+?)\s{2,}([\d.]+)", re.MULTILINE)
+_STAGE_PATTERNS = [
+    (re.compile(r"gaussian",           re.I), "Gaussian"),
+    (re.compile(r"sobel",              re.I), "Sobel"),
+    (re.compile(r"magnitude",          re.I), "Magnitude"),
+    (re.compile(r"direction",          re.I), "Direction"),
+    (re.compile(r"non.?max|nms",       re.I), "NMS"),
+    (re.compile(r"double.?thresh|dbl", re.I), "DblThresh"),
+    (re.compile(r"hysteresis",         re.I), "Hysteresis"),
 ]
 
+def _canonical(raw_name):
+    for pat, canon in _STAGE_PATTERNS:
+        if pat.search(raw_name): return canon
+    return None
 
-def parse_bench_o3(path: str) -> dict[str, float] | None:
-    """Parse bench_results.txt and extract the -O3 block."""
-    if not os.path.exists(path):
-        print(f"Warning: {path} not found. Skipping.")
-        return None
+def _parse_block(text):
+    result = {}
+    for raw_name, value_str in _ROW_RE.findall(text):
+        canon = _canonical(raw_name)
+        if canon and canon not in result:
+            result[canon] = float(value_str)
+    return result
 
-    with open(path, "r") as f:
-        content = f.read()
+def parse_timing_file(path, block_keyword):
+    if not os.path.isfile(path):
+        print(f"  [plot4] WARNING: file not found: {path}"); return None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    keyword_lc = block_keyword.lower()
+    chunks = re.split(r"\[Step \d+\]", text)
+    fallback = None
+    for chunk in chunks:
+        parsed = _parse_block(chunk)
+        if not parsed: continue
+        for raw_name, _ in _ROW_RE.findall(chunk):
+            if keyword_lc in raw_name.lower() and _canonical(raw_name) == "Gaussian":
+                return parsed
+        if "Gaussian" in parsed: fallback = parsed
+    return fallback
 
-    # Find --- -O3 --- block
-    match = re.search(r"---\s*-O3\s*---(.*?)(?=---\s*-O|$)", content, re.DOTALL)
+def parse_bench_o3(path):
+    if not os.path.isfile(path):
+        print(f"  [plot4] WARNING: file not found: {path}"); return None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    match = re.search(r"---\s*-O3\s*---(.+?)(?=---\s*-O|\Z)", text, re.DOTALL|re.IGNORECASE)
     if not match:
-        print(f"[plot4] Could not find -O3 block in {path}")
-        return None
+        print("  [plot4] WARNING: -O3 block not found"); return None
+    return _parse_block(match.group(1))
 
-    block = match.group(1)
-    result = {}
-    for line in block.strip().splitlines():
-        line = line.strip()
-        if not line or "|" not in line:
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) >= 2:
-            # Stage name may have "(padded)" etc.
-            stage_raw = parts[0]
-            time_str = parts[1].replace("µs", "").replace("us", "").strip()
-            # Extract base stage name
-            stage_name = stage_raw.split()[0]
-            try:
-                result[stage_name] = float(time_str)
-            except ValueError:
-                continue
-    return result if result else None
-
-
-def parse_timing_file(path: str) -> dict[str, float] | None:
-    """Read a timing table and return {stage: us}."""
-    if not os.path.exists(path):
-        print(f"Warning: {path} not found. Skipping.")
-        return None
-
-    result = {}
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("-"):
-                continue
-            if "|" not in line:
-                continue
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) >= 2:
-                stage = parts[0]
-                time_str = parts[1].replace("µs", "").replace("us", "").strip()
-                try:
-                    result[stage] = float(time_str)
-                except ValueError:
-                    continue
-    return result if result else None
-
-
-def generate(
-    out_dir: str = "docs",
-    bench_file: str = "docs/bench_results.txt",
-    rvv_file: str = "docs/timing_rvv.txt",
-) -> None:
-    """Generate plot 4."""
-    auto_vec = parse_bench_o3(bench_file)
-    rvv = parse_timing_file(rvv_file)
-
-    if auto_vec is None or rvv is None:
-        print("[plot4] Missing data files, skipping autovec_vs_rvv.png")
-        return
-
-    auto_vals = [auto_vec.get(s, 0.0) for s in STAGES]
-    rvv_vals = [rvv.get(s, 0.0) for s in STAGES]
-
-    x = np.arange(len(STAGES))
-    width = 0.35
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    bars1 = ax.bar(x - width / 2, auto_vals, width, label="Auto-vec (-O3)", color="#55A868")
-    bars2 = ax.bar(x + width / 2, rvv_vals, width, label="Manual RVV", color="#DD8452")
-
-    # Annotations
-    for i, (av, rv) in enumerate(zip(auto_vals, rvv_vals)):
-        if rv > 0 and av > 0:
-            if rv < av:
-                ratio = av / rv
-                ax.text(
-                    x[i] + width / 2,
-                    rv + max(auto_vals) * 0.02,
-                    f"×{ratio:.1f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                    fontweight="bold",
-                )
-            elif av < rv:
-                ax.text(
-                    x[i] - width / 2,
-                    av + max(auto_vals) * 0.02,
-                    "scalar wins",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                    color="red",
-                    fontweight="bold",
-                )
-
-    ax.set_ylabel("Time (µs)")
-    ax.set_title("Compiler Auto-vec (-O3) vs Manual RVV Intrinsics")
-    ax.set_xticks(x)
-    ax.set_xticklabels(STAGES, rotation=30, ha="right")
-    ax.legend()
-    ax.set_ylim(0, max(max(auto_vals), max(rvv_vals)) * 1.25)
-
-    plt.tight_layout()
+def generate(out_dir="docs", padded_file="docs/timing_padded.txt", rvv_file="docs/timing_rvv.txt"):
+    autovec = parse_timing_file(padded_file, "rvv")
+    rvv     = parse_timing_file(rvv_file, "rvv")
+    if autovec is None or rvv is None:
+        print("  [plot4] Skipping — input files missing."); return
+    av = np.array([autovec.get(s, float("nan")) for s in STAGES])
+    rv = np.array([rvv.get(s,    float("nan")) for s in STAGES])
+    x = np.arange(len(STAGES)); width = 0.35
+    fig, ax = plt.subplots(figsize=(13, 6))
+    ax.bar(x - width/2, av, width, label="Auto-vec (-O3)", color="#55A868")
+    ax.bar(x + width/2, rv, width, label="Manual RVV",     color="#DD8452")
+    for i,(a,r) in enumerate(zip(av,rv)):
+        if np.isnan(a) or np.isnan(r) or r==0: continue
+        ratio = a/r; top = max(a,r)
+        if ratio >= 1.0:
+            ax.text(x[i], top*1.02, f"x{ratio:.1f}", ha="center", va="bottom",
+                    fontsize=8.5, color="#8B0000", fontweight="bold")
+        else:
+            ax.text(x[i], top*1.02, f"slowdown {1/ratio:.1f}x", ha="center", va="bottom",
+                    fontsize=8, color="red", fontweight="bold")
+    ax.set_ylabel("Time (µs)", fontsize=12); ax.set_xlabel("Pipeline Stage", fontsize=12)
+    ax.set_title("Compiler Auto-vec (-O3) vs Manual RVV Intrinsics", fontsize=14, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(STAGES, rotation=20, ha="right", fontsize=10)
+    ax.legend(fontsize=10); ax.yaxis.grid(True, linestyle="--", alpha=0.5); ax.set_axisbelow(True)
+    fig.tight_layout()
+    os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "autovec_vs_rvv.png")
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
-    print(f"[plot4] Wrote {out_path}")
-
+    fig.savefig(out_path, dpi=150); plt.close(fig)
+    print(f"  [plot4] Saved -> {out_path}")
 
 if __name__ == "__main__":
-    generate()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", default="docs")
+    ap.add_argument("--bench-file", default="docs/bench_results.txt")
+    ap.add_argument("--rvv-file", default="docs/timing_rvv.txt")
+    args = ap.parse_args()
+    generate(args.out_dir, args.bench_file, args.rvv_file)
