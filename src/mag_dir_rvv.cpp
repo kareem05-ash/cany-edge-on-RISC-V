@@ -33,7 +33,7 @@ void compute_magnitude_rvv(const int16_t *gx, const int16_t *gy,
     //   If VLEN changes, vl changes automatically — code is VLEN-agnostic.
     //
     // Seeding vredmax with 0 is correct because |Gx|+|Gy| >= 0 always.
-    vint32m1_t vs_zero = __riscv_vmv_s_x_i32m1(0, 1);
+    // vint32m1_t vs_zero = __riscv_vmv_s_x_i32m1(0, 1);
     // vs_max: holds running global max; m1 used for reduction seed/result
     vint32m1_t vs_max  = __riscv_vmv_s_x_i32m1(0, 1);
 
