@@ -157,7 +157,7 @@ canny_rv: $(BLD_RV)/canny
 # ===========================================================================================
 run_host: $(BLD_HOST)/canny
 	@echo "=== Running on host ==="
-	./$(BLD_HOST)/canny $(W) $(H) $(I)
+	./$(BLD_HOST)/canny $(W) $(H) $(I) $(VLEN)
 
 # ===========================================================================================
 # RUN — RISC-V TARGET (QEMU)
@@ -458,3 +458,33 @@ clean: clean_bin clean_imgs
         format docs package										\
         clean_bin clean_imgs clean								\
 		setup verify
+# ── Visualization targets ────────────────────────────────────────────────────
+PYTHON := python3
+
+plot_all:
+	$(PYTHON) tools/python/plot_all.py $(W) $(H) $(I)
+
+plot_pipeline:
+	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I)
+
+plot_hotspot:
+	$(PYTHON) tools/python/plot_hotspot.py docs/timing_padded.txt docs/timing_rvv.txt
+
+plot_sweep:
+	$(PYTHON) tools/python/plot_sweep.py docs/bench_results.txt
+
+plot_speedup:
+	$(PYTHON) tools/python/plot_speedup.py docs/bench_results.txt
+
+plot_vlen:
+	$(PYTHON) tools/python/plot_vlen.py \
+	    docs/timing_vlen128.txt docs/timing_vlen256.txt docs/timing_vlen512.txt
+
+plot_journey:
+	$(PYTHON) tools/python/plot_journey.py docs/bench_results.txt docs/timing_rvv.txt
+
+plot_diff:
+	$(PYTHON) tools/python/plot_diff.py $(W) $(H) $(I)
+
+.PHONY: plot_all plot_pipeline plot_hotspot plot_sweep plot_speedup \
+        plot_vlen plot_journey plot_diff

@@ -1,80 +1,95 @@
 #!/usr/bin/env python3
-# tools/python/plot_all.py
-# ---------------------------------------------------------------------------
-# Run all plot scripts in one go.
-#
-# Usage:
-#   python3 tools/python/plot_all.py            # phase 6 + phase 7
-#   python3 tools/python/plot_all.py --phase 6  # phase 6 only (CI smoke test)
-#
-# All plot modules import timing_parser from the same directory, so this
-# script must be run from the project root so that sys.path.insert(0, ...) in
-# each module resolves correctly, OR via `python3 -m tools.python.plot_all`.
-# ---------------------------------------------------------------------------
+"""
+plot_all.py — orchestrator for all visualization scripts.
 
-import argparse
-import os
+CLI: python3 tools/python/plot_all.py <W> <H> <I>
+Exits 0 if all scripts succeed, 1 if any failed.
+"""
 import sys
+import os
+import subprocess
 
-# Allow imports from the tools/python directory regardless of CWD
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-# Also allow "from project root" style in case plot_all is run from root
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PYDIR  = os.path.join(ROOT, 'tools', 'python')
+DOCS   = os.path.join(ROOT, 'docs')
 
-import plot1_speedup
-import plot2_pie
-import plot3_before_after
-import plot4_autovec_rvv
-import plot5_lmul_sweep
-import plot6_pipeline
-import plot7_size_sweep
-import plot8_opt_levels
-import plot10_stacked
-import plot_rvv_pie
+def p(name):
+    return os.path.join(PYDIR, name)
+
+def d(name):
+    return os.path.join(DOCS, name)
+
+def run(label, cmd):
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f'[OK]   {label}')
+            return True
+        else:
+            err = (result.stderr or result.stdout).strip().splitlines()
+            short = err[-1] if err else 'non-zero exit'
+            print(f'[FAIL] {label}: {short}')
+            return False
+    except Exception as e:
+        print(f'[FAIL] {label}: {e}')
+        return False
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate all Canny Edge Detection plots."
-    )
-    parser.add_argument("--phase", type=int, default=0,
-                        help="6 = phase-6 plots only; 0 = all plots")
-    parser.add_argument("--out-dir", type=str, default="docs",
-                        help="Output directory for PNG files (default: docs)")
-    args = parser.parse_args()
-    os.makedirs(args.out_dir, exist_ok=True)
+    if len(sys.argv) != 4:
+        print(f'Usage: python3 {sys.argv[0]} <W> <H> <I>')
+        sys.exit(1)
 
-    phase6 = [
-        ("plot1_speedup",      plot1_speedup),
-        ("plot2_pie",          plot2_pie),
-        ("plot3_before_after", plot3_before_after),
-        ("plot4_autovec_rvv",  plot4_autovec_rvv),
-        ("plot5_lmul_sweep",   plot5_lmul_sweep),
-        ("plot_rvv_pie",       plot_rvv_pie),      # NEW: RVV pie + scalar vs RVV bars
+    W, H, I = sys.argv[1], sys.argv[2], sys.argv[3]
+    PY = sys.executable
+    failures = []
+
+    scripts = [
+        # (output label,  command)
+        # ── Tier 1 ────────────────────────────────────────────────────────
+        (d('pipeline_gallery.png'),
+         [PY, p('plot_pipeline.py'), W, H, I]),
+
+        (d('hotspot_pie.png'),
+         [PY, p('plot_hotspot.py'),
+          d('timing_padded.txt'), d('timing_rvv.txt')]),
+
+        (d('compiler_sweep.png'),
+         [PY, p('plot_sweep.py'), d('bench_results.txt')]),
+
+        (d('speedup_normalized.png'),
+         [PY, p('plot_speedup.py'), d('bench_results.txt')]),
+
+        # ── Tier 2 ────────────────────────────────────────────────────────
+        (d('vlen_scaling.png'),
+         [PY, p('plot_vlen.py'),
+          d('timing_vlen128.txt'), d('timing_vlen256.txt'), d('timing_vlen512.txt')]),
+
+        (d('optimization_journey.png'),
+         [PY, p('plot_journey.py'),
+          d('bench_results.txt'), d('timing_rvv.txt')]),
+
+        # ── Tier 3 ────────────────────────────────────────────────────────
+        (d('lmul_sweep.png'),
+         [PY, p('plot_lmul.py'), d('bench_results.txt')]),
+
+        (d('amdahl_ceiling.png'),
+         [PY, p('plot_amdahl.py'),
+          d('timing_padded.txt'), d('timing_rvv.txt')]),
+
+        (d('scalar_rvv_diff.png'),
+         [PY, p('plot_diff.py'), W, H, I]),
     ]
-    phase7 = [
-        ("plot6_pipeline",   plot6_pipeline),
-        ("plot7_size_sweep", plot7_size_sweep),
-        ("plot8_opt_levels", plot8_opt_levels),
-        ("plot10_stacked",   plot10_stacked),
-    ]
 
-    plots = phase6 if args.phase == 6 else phase6 + phase7
-
-    for name, mod in plots:
-        print("[plot_all] Running", name)
-        try:
-            if name in ("plot1_speedup", "plot3_before_after", "plot4_autovec_rvv"):
-                mod.generate(out_dir=args.out_dir,
-                             **({} if name == "plot4_autovec_rvv" else {}))
-            else:
-                mod.generate(out_dir=args.out_dir)
-        except Exception as e:
-            print("[plot_all] ERROR in", name, ":", e)
+    for label, cmd in scripts:
+        ok = run(label, cmd)
+        if not ok:
+            failures.append(label)
 
     print()
-    print("[plot_all] Done. Output dir:", args.out_dir)
+    print(f'Done: {len(scripts) - len(failures)}/{len(scripts)} succeeded.')
+    sys.exit(1 if failures else 0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

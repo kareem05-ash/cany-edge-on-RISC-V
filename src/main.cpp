@@ -236,9 +236,12 @@ int main(int argc, char *argv[]) {
     // ── [Step 6] Save output images (host only) ───────────────────────────────
 #ifndef __riscv
     printf("\n[Step 6] Saving output images ...\n");
-    save_outputs(img_name, W, H, "",     src, *out_2d.blurred,  out_2d.mag,  out_2d.out_refined);
-    save_outputs(img_name, W, H, "_sep", src, *out_sep.blurred, out_sep.mag, out_sep.out_refined);
-    save_outputs(img_name, W, H, "_pad", src, *out_pad.blurred, out_pad.mag, out_pad.out_refined);
+    save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+                 out_2d.magnitude,  out_2d.edges);
+    save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+                 out_sep.magnitude, out_sep.edges);
+    save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+                 out_pad.magnitude, out_pad.edges);
 #endif
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
