@@ -28,3 +28,10 @@ venv/
 # General 
 *.zip
 chore-repo-improvements.md
+
+# Generated figures and timing data
+docs/*.png
+docs/*.txt
+__pycache__/
+*.pyc
+patch_*.py

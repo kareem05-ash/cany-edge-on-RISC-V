@@ -90,17 +90,6 @@ typedef struct {
  * @return   0 on success; negative Linux errno on failure.
  */
 static inline int riscv_clock_gettime(TimeSpec *ts) {
-// ecall (Linux clock_gettime syscall via RISC-V inline assembly):
-//   (NOTE TO INSTRUCTOR: The codebase currently uses ecall instead of rdtime for timing)
-//   (1) WHAT:  Executes a raw Linux syscall (113 = __NR_clock_gettime) via the `ecall`
-//              instruction. QEMU user-mode intercepts this ecall and forwards it to
-//              the host operating system kernel to get the wall-clock time.
-//   (2) Why not standard clock_gettime: The riscv64-unknown-elf toolchain targets
-//              bare metal (Newlib). It lacks OS headers, so the standard C++ <time.h> 
-//              functions aren't implemented. We bypass this by making the syscall directly.
-//   (3) Precision: Unlike rdtime, which relies on a QEMU emulated counter, this accesses
-//              the host machine's high-resolution monotonic clock. However, because QEMU
-//              is not cycle-accurate, this measures host-emulation time, not target hardware time.
     register long a0 asm("a0") = CLOCK_MONOTONIC_ID;
     register long a1 asm("a1") = (long)ts;
     register long a7 asm("a7") = SYS_clock_gettime;
