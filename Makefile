@@ -302,23 +302,62 @@ $(BLD_RV)/canny_Ofast: $(PIPELINE) src/main.cpp
 _bench_all: $(BLD_RV)/canny_O0 $(BLD_RV)/canny_O2 $(BLD_RV)/canny_O3 \
             $(BLD_RV)/canny_Os $(BLD_RV)/canny_Ofast
 
+# Which Gaussian method's stage table to capture from the binary's stdout.
+# Override with METHOD=2d|sep|padded, or use the sweep_2d / sweep_sep / sweep_padded
+# aliases below. Defaults to padded for backward compatibility.
+METHOD ?= padded
+
+# Maps METHOD -> the exact "[Step N] ..." banner text main.cpp prints for that
+# method, and the output file suffix, so each method gets its own results file
+# instead of overwriting bench_results.txt on every run.
+ifeq ($(METHOD),2d)
+  STEP_MARKER := \[Step 2\]
+  SWEEP_OUT   := $(DOCS_DIR)/bench_results_2d.txt
+else ifeq ($(METHOD),sep)
+  STEP_MARKER := \[Step 3\]
+  SWEEP_OUT   := $(DOCS_DIR)/bench_results_sep.txt
+else ifeq ($(METHOD),padded)
+  STEP_MARKER := \[Step 4\]
+  SWEEP_OUT   := $(DOCS_DIR)/bench_results_padded.txt
+else
+  $(error Unknown METHOD '$(METHOD)' — use 2d, sep, or padded)
+endif
+
 sweep: _bench_all
-	@echo "======================================================"  | tee  $(DOCS_DIR)/bench_results.txt
-	@echo " Optimization Sweep — RISC-V QEMU VLEN=$(VLEN)"         | tee -a $(DOCS_DIR)/bench_results.txt
-	@echo " Image: $(I)   Size: $(W)x$(H)"                         | tee -a $(DOCS_DIR)/bench_results.txt
-	@echo "======================================================"  | tee -a $(DOCS_DIR)/bench_results.txt
+	@echo "======================================================"  | tee  $(SWEEP_OUT)
+	@echo " Optimization Sweep — RISC-V QEMU VLEN=$(VLEN)"         | tee -a $(SWEEP_OUT)
+	@echo " Gaussian method: $(METHOD)   Image: $(I)   Size: $(W)x$(H)" | tee -a $(SWEEP_OUT)
+	@echo "======================================================"  | tee -a $(SWEEP_OUT)
 	@for FLAG in O0 O2 O3 Os Ofast; do \
-		echo ""                                           | tee -a $(DOCS_DIR)/bench_results.txt; \
-		echo "--- -$$FLAG ---"                            | tee -a $(DOCS_DIR)/bench_results.txt; \
+		echo ""                                           | tee -a $(SWEEP_OUT); \
+		echo "--- -$$FLAG ---"                            | tee -a $(SWEEP_OUT); \
 		SIZE=$$(du -k $(BLD_RV)/canny_$$FLAG | cut -f1); \
-		echo "Binary size: $${SIZE} KB"                  | tee -a $(DOCS_DIR)/bench_results.txt; \
+		echo "Binary size: $${SIZE} KB"                  | tee -a $(SWEEP_OUT); \
 		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
 			$(BLD_RV)/canny_$$FLAG $(W) $(H) $(I) $(VLEN) \
-		| awk '/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
-		| tee -a $(DOCS_DIR)/bench_results.txt; \
+		| awk '/^$(STEP_MARKER)/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		| tee -a $(SWEEP_OUT); \
 	done
 	@echo ""
-	@echo "Sweep complete -> $(DOCS_DIR)/bench_results.txt"
+	@echo "Sweep complete ($(METHOD)) -> $(SWEEP_OUT)"
+
+# Convenience aliases: make sweep_2d / sweep_sep / sweep_padded
+sweep_2d:
+	@$(MAKE) sweep METHOD=2d
+
+sweep_sep:
+	@$(MAKE) sweep METHOD=sep
+
+sweep_padded:
+	@$(MAKE) sweep METHOD=padded
+
+# Run all three in one go, each into its own bench_results_*.txt
+sweep_all_methods: sweep_2d sweep_sep sweep_padded
+	@echo ""
+	@echo "All three sweeps complete:"
+	@echo "  $(DOCS_DIR)/bench_results_2d.txt"
+	@echo "  $(DOCS_DIR)/bench_results_sep.txt"
+	@echo "  $(DOCS_DIR)/bench_results_padded.txt"
 
 # ===========================================================================================
 # PHASE 4 — Auto-vectorization report
@@ -343,14 +382,47 @@ autovec: $(PIPELINE) src/main.cpp
 		| sed 's/.*not vectorized: //' | sort | uniq -c | sort -rn | head -10
 
 # ===========================================================================================
-# PHASE 4 — Count RVV vector instructions
+# PHASE 4 — Count RVV vector instructions (whole binary + per gaussian variant)
 # ===========================================================================================
-count_vec: $(BLD_RV)/canny_O0 $(BLD_RV)/canny_O3
-	@O3=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O3 | grep -c "vset" || echo 0); \
-	O0=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O0 | grep -c "vset" || echo 0); \
-	echo "  vset* instructions in -O0 binary : $$O0"; \
-	echo "  vset* instructions in -O3 binary : $$O3"
+$(BLD_RV)/gaussian_O0.o: src/gaussian.cpp include/gaussian.h
+	$(RV_CXX) -std=c++17 $(WARN_FLAGS) -O0 -march=rv64gcv -mabi=lp64d \
+		-I$(INC_DIR) -c $< -o $@
 
+$(BLD_RV)/gaussian_O3.o: src/gaussian.cpp include/gaussian.h
+	$(RV_CXX) -std=c++17 $(WARN_FLAGS) -O3 -march=rv64gcv -mabi=lp64d \
+		-I$(INC_DIR) -c $< -o $@
+
+count_vec: $(BLD_RV)/canny_O0 $(BLD_RV)/canny_O3 \
+           $(BLD_RV)/gaussian_O0.o $(BLD_RV)/gaussian_O3.o
+	@O0=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O0 | grep -c "vset" || echo 0); \
+	O3=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/canny_O3 | grep -c "vset" || echo 0); \
+	echo "  vset* instructions in -O0 binary : $$O0"; \
+	echo "  vset* instructions in -O3 binary : $$O3"; \
+	echo ""; \
+	echo "=== Gaussian variant vset* breakdown ==="; \
+	echo "  Note: vset* in gaussian_blur_padded counts the memcpy loop only;"; \
+	echo "  the convolution loop was not auto-vectorized (nested ky/kx structure)."; \
+	echo ""; \
+	printf "%-30s %8s %8s\n" "Function" "-O0" "-O3"; \
+	printf "%-30s %8s %8s\n" "------------------------------" "--------" "--------"; \
+	for row in \
+		"gaussian_blur:_Z13gaussian_blurRK5ImageRS_" \
+		"gaussian_blur_separable:_Z23gaussian_blur_separableRK5ImageRS_" \
+		"gaussian_blur_padded:_Z20gaussian_blur_paddedRK5ImageRS_"; do \
+		fn=$${row%%:*}; sym=$${row##*:}; \
+		o0=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/gaussian_O0.o | \
+			awk "/^[0-9a-f]+ <$${sym}>:/{found=1;cnt=0;next} \
+			     found && /^[0-9a-f]+ <_Z[^>]+>:/{found=0} \
+			     found && /vset/{cnt++} \
+			     END{print cnt+0}"); \
+		o3=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/gaussian_O3.o | \
+			awk "/^[0-9a-f]+ <$${sym}>:/{found=1;cnt=0;next} \
+			     found && /^[0-9a-f]+ <_Z[^>]+>:/{found=0} \
+			     found && /vset/{cnt++} \
+			     END{print cnt+0}"); \
+		printf "%-30s %8d %8d\n" "$$fn" "$$o0" "$$o3"; \
+	done; \
+	echo "========================================"
 # ===========================================================================================
 # PHASE 6 — VLEN sweep
 # Saves: docs/vlen_sweep.txt (full per-stage breakdown at each VLEN)
@@ -433,7 +505,8 @@ package:
 # CLEAN
 # ===========================================================================================
 clean_bin:
-	rm -f $(BLD_HOST)/* $(BLD_RV)/*
+	rm -f $(BLD_HOST)/* $(BLD_RV)/* \
+	rm -f $(BLD_RV)/gaussian_O0.o $(BLD_RV)/gaussian_O3.o 
 
 clean_imgs:
 	rm -f $(IMGS_DIR)/*.raw
@@ -453,7 +526,7 @@ clean: clean_bin clean_imgs
         test_sobel test_sobel_rvv test_mag_dir test_mag_dir_rvv	\
         test_edge_refinement test_vlen_sweep					\
         test_rvv_equiv											\
-        _bench_all sweep autovec count_vec						\
+        _bench_all sweep sweep_2d sweep_sep sweep_padded sweep_all_methods autovec count_vec	\
         vlen_sweep lmul_sweep									\
         format docs package										\
         clean_bin clean_imgs clean								\
