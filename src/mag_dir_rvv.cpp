@@ -33,10 +33,7 @@ void compute_magnitude_rvv(const int16_t *gx, const int16_t *gy,
     //   If VLEN changes, vl changes automatically — code is VLEN-agnostic.
     //
     // Seeding vredmax with 0 is correct because |Gx|+|Gy| >= 0 always.
-<<<<<<< Updated upstream
-    // vint32m1_t vs_zero = __riscv_vmv_s_x_i32m1(0, 1);
-=======
-    
+
     // __riscv_vmv_s_x_i32m1:
     //   (1) WHAT:  Moves a scalar value into the first element of a vector register, setting others to 0.
     //   (2) LMUL:  m1 is required because reductions always produce an m1 vector result.
@@ -47,7 +44,7 @@ void compute_magnitude_rvv(const int16_t *gx, const int16_t *gy,
     //   (1) WHAT:  Initializes the reduction scalar accumulator with zero.
     //   (2) LMUL:  m1 matches the reduction output specification.
     //   (3) VLEN:  At larger VLEN, more elements are processed per iteration, meaning fewer loop cycles are needed. The binary is VLEN-agnostic.
->>>>>>> Stashed changes
+
     // vs_max: holds running global max; m1 used for reduction seed/result
     vint32m1_t vs_max  = __riscv_vmv_s_x_i32m1(0, 1);
 
