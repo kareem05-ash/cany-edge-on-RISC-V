@@ -40,8 +40,8 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[0].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 1] Sobel Gradient ──────────────────────────────────────────
-    int16_t *Gx = new int16_t[W * H];
-    int16_t *Gy = new int16_t[W * H];
+    int16_t *Gx = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
+    int16_t *Gy = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         sobel(*blurred, Gx, Gy);
@@ -49,7 +49,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[1].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 2] Gradient Magnitude ─────────────────────────────────────
-    uint8_t *mag = new uint8_t[W * H];
+    uint8_t *mag = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         compute_magnitude(Gx, Gy, mag, W, H, mag_L1 ? MagMethod::L1 : MagMethod::L2);
@@ -57,7 +57,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[2].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 3] Gradient Direction ──────────────────────────────────────
-    uint8_t *dir = new uint8_t[W * H];
+    uint8_t *dir = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         compute_direction(Gx, Gy, dir, W, H);
@@ -65,7 +65,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[3].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 4] Non-Maximum Suppression ────────────────────────────────
-    uint8_t *nms_out = new uint8_t[W * H];
+    uint8_t *nms_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         nms(mag, dir, nms_out, W, H);
@@ -80,7 +80,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     uint8_t t_high = (uint8_t)(max_mag * 0.4f);
     uint8_t t_low  = (uint8_t)(t_high  * 0.5f);
 
-    uint8_t *dthr_out = new uint8_t[W * H];
+    uint8_t *dthr_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         double_threshold(nms_out, dthr_out, W, H, t_low, t_high);
@@ -88,7 +88,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[5].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 6] Hysteresis ──────────────────────────────────────────────
-    uint8_t *hys_out = new uint8_t[W * H];
+    uint8_t *hys_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         hysteresis(dthr_out, hys_out, W, H);
@@ -96,7 +96,7 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    uint8_t *blurred_buf = new uint8_t[W * H];
+    uint8_t *blurred_buf = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     memcpy(blurred_buf, blurred->data, W * H);
     delete blurred;
 
@@ -107,9 +107,9 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] dir;
-    delete[] nms_out;
-    delete[] dthr_out;
+    free(dir);
+    free(nms_out);
+    free(dthr_out);
 }
 
 // ====================================================================================================
@@ -180,8 +180,8 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[0].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 1] Sobel (scalar fallback until sobel_rvv is ready) ────────
-    int16_t *Gx = new int16_t[W * H];
-    int16_t *Gy = new int16_t[W * H];
+    int16_t *Gx = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
+    int16_t *Gy = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
     #ifdef __riscv
@@ -193,7 +193,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[1].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 2] Magnitude (RVV L1) ─────────────────────────────────────
-    uint8_t *mag = new uint8_t[W * H];
+    uint8_t *mag = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
     #ifdef __riscv
@@ -205,7 +205,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[2].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 3] Direction — scalar (not hot) ────────────────────────────
-    uint8_t *dir = new uint8_t[W * H];
+    uint8_t *dir = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         compute_direction(Gx, Gy, dir, W, H);
@@ -213,7 +213,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[3].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 4] NMS — scalar ────────────────────────────────────────────
-    uint8_t *nms_out = new uint8_t[W * H];
+    uint8_t *nms_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         nms(mag, dir, nms_out, W, H);
@@ -227,7 +227,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     uint8_t t_high = (uint8_t)(max_mag * 0.4f);
     uint8_t t_low  = (uint8_t)(t_high  * 0.5f);
 
-    uint8_t *dthr_out = new uint8_t[W * H];
+    uint8_t *dthr_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         double_threshold(nms_out, dthr_out, W, H, t_low, t_high);
@@ -235,7 +235,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[5].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 6] Hysteresis — scalar ─────────────────────────────────────
-    uint8_t *hys_out = new uint8_t[W * H];
+    uint8_t *hys_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         hysteresis(dthr_out, hys_out, W, H);
@@ -243,7 +243,7 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    uint8_t *blurred_buf = new uint8_t[W * H];
+    uint8_t *blurred_buf = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     memcpy(blurred_buf, blurred->data, W * H);
     delete blurred;
 
@@ -254,9 +254,9 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] dir;
-    delete[] nms_out;
-    delete[] dthr_out;
+    free(dir);
+    free(nms_out);
+    free(dthr_out);
 }
 
 // ====================================================================================================
@@ -286,8 +286,8 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[0].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 1] Sobel — RVV ─────────────────────────────────────────────
-    int16_t *Gx = new int16_t[W * H];
-    int16_t *Gy = new int16_t[W * H];
+    int16_t *Gx = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
+    int16_t *Gy = static_cast<int16_t*>(aligned_alloc(64, sizeof(int16_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
 #ifdef __riscv
@@ -299,7 +299,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[1].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 2] Magnitude — RVV L1 ─────────────────────────────────────
-    uint8_t *mag = new uint8_t[W * H];
+    uint8_t *mag = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
 #ifdef __riscv
@@ -311,7 +311,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[2].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 3] Direction — scalar (not hot enough to RVV-optimise) ─────
-    uint8_t *dir = new uint8_t[W * H];
+    uint8_t *dir = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         compute_direction(Gx, Gy, dir, W, H);
@@ -319,7 +319,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[3].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 4] NMS — scalar ────────────────────────────────────────────
-    uint8_t *nms_out = new uint8_t[W * H];
+    uint8_t *nms_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         nms(mag, dir, nms_out, W, H);
@@ -333,7 +333,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     uint8_t t_high = (uint8_t)(max_mag * 0.4f);
     uint8_t t_low  = (uint8_t)(t_high  * 0.5f);
 
-    uint8_t *dthr_out = new uint8_t[W * H];
+    uint8_t *dthr_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         double_threshold(nms_out, dthr_out, W, H, t_low, t_high);
@@ -341,7 +341,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[5].time_us = timer_stop(&t) / n_iter;
 
     // ── [Stage 6] Hysteresis — scalar ─────────────────────────────────────
-    uint8_t *hys_out = new uint8_t[W * H];
+    uint8_t *hys_out = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     timer_start(&t);
     for (int i = 0; i < n_iter; i++)
         hysteresis(dthr_out, hys_out, W, H);
@@ -349,7 +349,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    uint8_t *blurred_buf = new uint8_t[W * H];
+    uint8_t *blurred_buf = static_cast<uint8_t*>(aligned_alloc(64, sizeof(uint8_t) * W * H));
     memcpy(blurred_buf, blurred->data, W * H);
     delete blurred;
 
@@ -360,7 +360,7 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] dir;
-    delete[] nms_out;
-    delete[] dthr_out;
+    free(dir);
+    free(nms_out);
+    free(dthr_out);
 }

@@ -8,6 +8,7 @@ build/riscv/*
 imgs/*.raw
 docs/*.png
 docs/*.txt
+docs/plots/*.png
 docs/doxygen/*
 # Object files
 *.o
