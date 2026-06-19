@@ -56,14 +56,14 @@ def main():
             continue
         ax.plot(x, y, marker='o', color=PALETTE[i], linewidth=2, label=stage_kw)
 
-        # # Check if lines are flat (within 5% of mean)
-        # mean_y = sum(y) / len(y)
-        # if mean_y > 0 and max(abs(v - mean_y) / mean_y for v in y) > 0.05:
-        #     ax.annotate('Non-flat line = VLA bug — fix before presenting',
-        #                 xy=(x[1], y[1]),
-        #                 xytext=(x[1], y[1] * 1.15),
-        #                 fontsize=FONT_SM, color='red',
-        #                 arrowprops=dict(arrowstyle='->', color='red'))
+        # Check if lines are flat (within 5% of mean)
+        mean_y = sum(y) / len(y)
+        if mean_y > 0 and max(abs(v - mean_y) / mean_y for v in y) > 0.05:
+            ax.annotate('Non-flat line = VLA bug — fix before presenting',
+                        xy=(x[1], y[1]),
+                        xytext=(x[1], y[1] * 1.15),
+                        fontsize=FONT_SM, color='red',
+                        arrowprops=dict(arrowstyle='->', color='red'))
 
     ax.set_xlabel('VLEN (bits)', fontsize=FONT_MD)
     ax.set_ylabel('Time (µs)', fontsize=FONT_MD)

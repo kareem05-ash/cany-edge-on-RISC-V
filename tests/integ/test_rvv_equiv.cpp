@@ -2,20 +2,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // QEMU-side assert-based test suite — cross-compiled for RISC-V.
 //
-// Current state (Phase 5 baseline):
-//   Tests 1-4 verify SCALAR correctness on the RISC-V target at any VLEN.
-//   They serve as the known-good baseline that Phase 6 RVV output must match.
+// Tests 1-4 verify SCALAR correctness on the RISC-V target at any VLEN.
+// They serve as the known-good baseline that RVV output must match.
 //
-// Phase 6 plan (RVV stubs below, marked TODO):
-//   Each scalar test will gain a paired RVV call. Both run on the same input;
-//   outputs are compared pixel-by-pixel within ±1 LSB tolerance.
-//   If the output differs between VLEN=128, 256, 512, the RVV code has a
-//   hardcoded VLEN assumption — a fundamental correctness bug.
+// Tests 5-6 verify RVV equivalence (compiled in when __riscv is defined):
+//   Each test runs both the scalar and RVV implementations on the same input
+//   and compares outputs pixel-by-pixel within ±1 LSB tolerance (Gaussian)
+//   or exact match (Sobel, which is pure integer with no rounding).
 //
 // Run at all three VLEN values:
 //   qemu-riscv64 -cpu rv64,v=true,vlen=128 build/riscv/tst_rvv_equiv
 //   qemu-riscv64 -cpu rv64,v=true,vlen=256 build/riscv/tst_rvv_equiv
 //   qemu-riscv64 -cpu rv64,v=true,vlen=512 build/riscv/tst_rvv_equiv
+//
+// If the output differs between VLEN=128, 256, 512, the RVV code has a
+// hardcoded VLEN assumption — a fundamental correctness bug.
 //
 // Uses non-power-of-two size (100x75) to force the strip-mining tail case:
 //   100 % vl != 0 for typical VLEN values (vl=4 at VLEN=128, 8 at 256, 16 at 512).
