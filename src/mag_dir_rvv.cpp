@@ -346,11 +346,11 @@ void compute_magnitude_l2_rvv(const int16_t *gx, const int16_t *gy,
         __riscv_vse32_v_f32m1((float *)(tmp + i), vmag, vl);
 
         // Reduction: update running global max.
-        // __riscv_vfredmax_vs_f32m1:
+        // __riscv_vfredmax_vs_f32m1_f32m1:
         //   (1) WHAT:  Reduces vmag to its maximum element, seeded by vs_max.
         //   (2) LMUL:  Source m1; output always m1 (scalar result in element 0).
         //   (3) VLEN:  VLEN-agnostic; processes vl elements per call.
-        vs_max = __riscv_vfredmax_vs_f32m1(vmag, vs_max, vl);
+        vs_max = __riscv_vfredmax_vs_f32m1_f32m1(vmag, vs_max, vl);
 
         i += (int)vl;
     }

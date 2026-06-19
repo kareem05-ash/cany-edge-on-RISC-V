@@ -147,11 +147,11 @@ int main(int argc, char *argv[]) {
     }
 
     // ── Pipeline output buffers ───────────────────────────────────────────────
-    PipelineOutputs out_2d      = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_sep     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_pad     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_rvv     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_rvv_sep = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_2d      = {};
+    PipelineOutputs out_sep     = {};
+    PipelineOutputs out_pad     = {};
+    PipelineOutputs out_rvv     = {};
+    PipelineOutputs out_rvv_sep = {};
 
     // ── Generate source image ─────────────────────────────────────────────────
     printf("[Step 1] Generating source image ...\n");
