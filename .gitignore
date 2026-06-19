@@ -9,29 +9,19 @@ imgs/*.raw
 docs/*.png
 docs/*.txt
 docs/doxygen/*
-
 # Object files
 *.o
-
 # Python
 __pycache__/
 *.pyc
 venv/
 .venv/
-
 # macOS
 .DS_Store
-
 # Editor
 .vscode/
-
 # General 
 *.zip
 chore-repo-improvements.md
-
 # Generated figures and timing data
-docs/*.png
-docs/*.txt
-__pycache__/
-*.pyc
 patch_*.py
