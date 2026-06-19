@@ -49,3 +49,20 @@ void save_img(const char *path, const Image &img) {
 
     fclose(f);
 }
+
+void save_raw_i16(const char *path, const int16_t *buf, int W, int H) {
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        fprintf(stderr, "Error: can't create file %s\n", path);
+        exit(1);
+    }
+    size_t n = (size_t)(W * H);
+    size_t written = fwrite(buf, sizeof(int16_t), n, f);
+    if (written != n) {
+        fprintf(stderr, "Error: expected to write %zu elements, wrote %zu to %s\n",
+                n, written, path);
+        fclose(f);
+        exit(1);
+    }
+    fclose(f);
+}
