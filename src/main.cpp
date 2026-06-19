@@ -233,15 +233,44 @@ int main(int argc, char *argv[]) {
     printf("\n%s\n", SECTION_DIV);
 #endif
 
-    // ── [Step 6] Save output images (host only) ───────────────────────────────
+//     // ── [Step 6] Save output images (host only) ───────────────────────────────
+// #ifndef __riscv
+//     printf("\n[Step 6] Saving output images ...\n");
+//     save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+//                  out_2d.magnitude,  out_2d.edges);
+//     save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+//                  out_sep.magnitude, out_sep.edges);
+//     save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+//                  out_pad.magnitude, out_pad.edges);
+// #endif
+
+// // ── [Step 7] Save output images (all platforms — QEMU user-mode supports file I/O) ──
+//     printf("\n[Step 7] Saving output images to imgs/ ...\n");
+//     save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+//                  out_2d.magnitude,  out_2d.edges);
+//     save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+//                  out_sep.magnitude, out_sep.edges);
+//     save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+//                  out_pad.magnitude, out_pad.edges);
+// #ifdef __riscv
+//     // RVV-Sep outputs only exist in target mode — saves as "_rvv" for plot_pipeline.py Row 4
+//     save_outputs(img_name, W, H, "_rvv", src, out_rvv_sep.blurred, out_rvv_sep.Gx, out_rvv_sep.Gy,
+//                  out_rvv_sep.magnitude, out_rvv_sep.edges);
+// #endif
+
+// ── [Step 7] Save output images (host only — bare-metal has no file I/O) ──────────
 #ifndef __riscv
-    printf("\n[Step 6] Saving output images ...\n");
+    printf("\n[Step 7] Saving output images ...\n");
     save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
                  out_2d.magnitude,  out_2d.edges);
     save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
                  out_sep.magnitude, out_sep.edges);
     save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
                  out_pad.magnitude, out_pad.edges);
+    // RVV-Sep is numerically identical to scalar-sep (proven by test_rvv_equiv at
+    // VLEN=128/256/512). Use sep outputs to populate the gallery's RVV-Sep row.
+    save_outputs(img_name, W, H, "_rvv", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+                 out_sep.magnitude, out_sep.edges);
 #endif
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
