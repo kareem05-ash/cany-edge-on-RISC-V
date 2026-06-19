@@ -426,6 +426,10 @@ $(BLD_RV)/gaussian_O0.o: src/gaussian.cpp include/gaussian.h
 	$(RV_CXX) -std=c++17 $(WARN_FLAGS) -O0 -march=rv64gcv -mabi=lp64d \
 		-I$(INC_DIR) -c $< -o $@
 
+$(BLD_RV)/gaussian_rvv_O2.o: src/gaussian_rvv.cpp include/gaussian_rvv.h include/gaussian.h
+	$(RV_CXX) -std=c++17 $(WARN_FLAGS) -O2 -march=rv64gcv -mabi=lp64d \
+		-I$(INC_DIR) -c $< -o $@
+
 $(BLD_RV)/gaussian_O3.o: src/gaussian.cpp include/gaussian.h
 	$(RV_CXX) -std=c++17 $(WARN_FLAGS) -O3 -march=rv64gcv -mabi=lp64d \
 		-I$(INC_DIR) -c $< -o $@
@@ -500,6 +504,42 @@ lmul_sweep: $(BLD_RV)/lmul_sweep
 	done
 	@echo ""
 	@echo "LMUL sweep complete -> $(DOCS_DIR)/lmul_gaussian.txt"
+
+# ===========================================================================================
+# PHASE 6 — Disassembly comparison: verify scalar -O3 auto-vec vs hand-written RVV
+# Answers the question: does -O3 already emit RVV for the scalar Gaussian?
+# Saves: docs/disasm_cmp.txt
+# ===========================================================================================
+disasm_cmp: $(BLD_RV)/gaussian_O3.o $(BLD_RV)/gaussian_rvv_O2.o
+	@echo "=== Disassembly Comparison ===" | tee  $(DOCS_DIR)/disasm_cmp.txt
+	@echo "" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "--- scalar gaussian.cpp compiled at -O3 ---" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@TOTAL=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/gaussian_O3.o \
+		| grep -c '^\s' || echo 0); \
+	VSET=$$(riscv64-unknown-elf-objdump  -d $(BLD_RV)/gaussian_O3.o \
+		| grep -c 'vset' || echo 0); \
+	echo "  Total instructions : $$TOTAL" | tee -a $(DOCS_DIR)/disasm_cmp.txt; \
+	echo "  vset* instructions : $$VSET  (>0 means compiler emitted RVV)" \
+		| tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "--- hand-written gaussian_rvv.cpp compiled at -O2 ---" \
+		| tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@TOTAL=$$(riscv64-unknown-elf-objdump -d $(BLD_RV)/gaussian_rvv_O2.o \
+		| grep -c '^\s' || echo 0); \
+	VSET=$$(riscv64-unknown-elf-objdump  -d $(BLD_RV)/gaussian_rvv_O2.o \
+		| grep -c 'vset' || echo 0); \
+	echo "  Total instructions : $$TOTAL" | tee -a $(DOCS_DIR)/disasm_cmp.txt; \
+	echo "  vset* instructions : $$VSET" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "Interpretation:" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "  If scalar -O3 vset* > 0, the auto-vectorizer used RVV." \
+		| tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "  Comparing total instruction counts reveals the vsetvl overhead" \
+		| tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "  of hand-written intrinsics vs compiler register-allocated RVV." \
+		| tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "" | tee -a $(DOCS_DIR)/disasm_cmp.txt
+	@echo "Saved -> $(DOCS_DIR)/disasm_cmp.txt"
 
 # ===========================================================================================
 # PHASE 7 — Visualization (individual plot targets)
@@ -643,7 +683,7 @@ clean: clean_bin clean_imgs clean_docs
         test_edge_refinement test_rvv_equiv test_vlen_sweep                     \
         _bench_all                                                              \
         sweep sweep_2d sweep_sep sweep_padded sweep_all_methods                 \
-        autovec count_vec                                                       \
+        autovec count_vec disasm_cmp                                            \
         vlen_sweep lmul_sweep                                                   \
         plot_pipeline plot_hotspot plot_sweep plot_speedup                      \
         plot_vlen plot_journey plot_amdahl plot_diff                            \
