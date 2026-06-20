@@ -44,12 +44,13 @@ static const char *IMG_NAMES[] = {
     "horizontal_edge", // 3
     "checkerboard",    // 4
     "impulse",         // 5
-    "gradient_ramp"    // 6
+    "gradient_ramp",   // 6
+    "external"         // 7
 };
-static const int N_IMGS = 7;
+static const int N_IMGS = 8;
 
 // ── Generate image by index ───────────────────────────────────────────────────
-static Image gen_by_index(int I, int W, int H) {
+static Image gen_by_index(int I, int W, int H, const char *ext_path = nullptr) {
     switch (I) {
     case 0:
         return gen_white_square(W, H);
@@ -65,9 +66,11 @@ static Image gen_by_index(int I, int W, int H) {
         return gen_impulse(W, H);
     case 6:
         return gen_gradient_ramp(W, H);
+    case 7:
+        if (!ext_path) { fprintf(stderr, "I=7 requires a file path (argv[5])\n"); exit(1); }
+        return load_img(ext_path, W, H);   // uses existing img_io loader
     default:
-        fprintf(stderr, "Error: invalid image index %d\n", I);
-        exit(1);
+        fprintf(stderr, "Error: invalid image index %d\n", I); exit(1);
     }
 }
 // ====================================================================================================
@@ -75,35 +78,29 @@ static Image gen_by_index(int I, int W, int H) {
 // ====================================================================================================
 int main(int argc, char *argv[]) {
 
-    // ── Arguments ─────────────────────────────────────────────────────────────
-    if (argc != 5) {
+// ── Arguments ────────────────────────────────────────────────────────────
+    if (argc < 5 || argc > 6) {
         fprintf(stderr,
-                "Usage: %s <W> <H> <I> <VLEN>\n"
-                "  W, H : image dimensions in pixels\n"
-                "  I    : image index\n"
-                "         0=white_square  1=circle        2=vertical_edge\n"
-                "         3=hor_edge      4=checkerboard  5=impulse\n"
-                "         6=gradient_ramp\n"
-                "  VLEN : 128 | 256 | 512\n",
-                argv[0]);
+            "Usage: %s <W> <H> <I> <VLEN> [file.raw]\n"
+            "  I=7 : load external raw file — file.raw required\n", argv[0]);
         return 1;
     }
+    const int   W    = atoi(argv[1]);
+    const int   H    = atoi(argv[2]);
+    const int   I    = atoi(argv[3]);
+    const int   VLEN = atoi(argv[4]);
+    const char *ext_path = (argc == 6) ? argv[5] : nullptr;
 
-    const int W    = atoi(argv[1]);
-    const int H    = atoi(argv[2]);
-    const int I    = atoi(argv[3]);
-    const int VLEN = atoi(argv[4]);
-
-    if (W <= 0 || H <= 0) {
-        fprintf(stderr, "Error: W and H must be positive integers.\n");
-        return 1;
+    // Use the stem of the external filename as img_name so outputs are named sensibly
+    static char ext_name[256] = "external";
+    if (I == 7 && ext_path) {
+        const char *slash = strrchr(ext_path, '/');
+        const char *base  = slash ? slash + 1 : ext_path;
+        strncpy(ext_name, base, sizeof(ext_name) - 1);
+        // strip .raw extension
+        char *dot = strrchr(ext_name, '.'); if (dot) *dot = '\0';
     }
-    if (I < 0 || I >= N_IMGS) {
-        fprintf(stderr, "Error: I must be in [0, %d].\n", N_IMGS - 1);
-        return 1;
-    }
-
-    const char *img_name   = IMG_NAMES[I];
+    const char *img_name = (I == 7) ? ext_name : IMG_NAMES[I];
     const int   ITERATIONS = 100;
 
     // ── Banner ────────────────────────────────────────────────────────────────
@@ -147,15 +144,15 @@ int main(int argc, char *argv[]) {
     }
 
     // ── Pipeline output buffers ───────────────────────────────────────────────
-    PipelineOutputs out_2d      = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_sep     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_pad     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_rvv     = {nullptr, nullptr, nullptr};
-    PipelineOutputs out_rvv_sep = {nullptr, nullptr, nullptr};
+    PipelineOutputs out_2d      = {};
+    PipelineOutputs out_sep     = {};
+    PipelineOutputs out_pad     = {};
+    PipelineOutputs out_rvv     = {};
+    PipelineOutputs out_rvv_sep = {};
 
     // ── Generate source image ─────────────────────────────────────────────────
     printf("[Step 1] Generating source image ...\n");
-    Image src = gen_by_index(I, W, H);
+    Image src = gen_by_index(I, W, H, ext_path);
     printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
 
     // ── [Step 2] 2D Gaussian ──────────────────────────────────────────────────
@@ -233,12 +230,44 @@ int main(int argc, char *argv[]) {
     printf("\n%s\n", SECTION_DIV);
 #endif
 
-    // ── [Step 6] Save output images (host only) ───────────────────────────────
+//     // ── [Step 6] Save output images (host only) ───────────────────────────────
+// #ifndef __riscv
+//     printf("\n[Step 6] Saving output images ...\n");
+//     save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+//                  out_2d.magnitude,  out_2d.edges);
+//     save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+//                  out_sep.magnitude, out_sep.edges);
+//     save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+//                  out_pad.magnitude, out_pad.edges);
+// #endif
+
+// // ── [Step 7] Save output images (all platforms — QEMU user-mode supports file I/O) ──
+//     printf("\n[Step 7] Saving output images to imgs/ ...\n");
+//     save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+//                  out_2d.magnitude,  out_2d.edges);
+//     save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+//                  out_sep.magnitude, out_sep.edges);
+//     save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+//                  out_pad.magnitude, out_pad.edges);
+// #ifdef __riscv
+//     // RVV-Sep outputs only exist in target mode — saves as "_rvv" for plot_pipeline.py Row 4
+//     save_outputs(img_name, W, H, "_rvv", src, out_rvv_sep.blurred, out_rvv_sep.Gx, out_rvv_sep.Gy,
+//                  out_rvv_sep.magnitude, out_rvv_sep.edges);
+// #endif
+
+// ── [Step 7] Save output images (host only — bare-metal has no file I/O) ──────────
 #ifndef __riscv
-    printf("\n[Step 6] Saving output images ...\n");
-    save_outputs(img_name, W, H, "",     src, *out_2d.blurred,  out_2d.mag,  out_2d.out_refined);
-    save_outputs(img_name, W, H, "_sep", src, *out_sep.blurred, out_sep.mag, out_sep.out_refined);
-    save_outputs(img_name, W, H, "_pad", src, *out_pad.blurred, out_pad.mag, out_pad.out_refined);
+    printf("\n[Step 7] Saving output images ...\n");
+    save_outputs(img_name, W, H, "",     src, out_2d.blurred,  out_2d.Gx,  out_2d.Gy,
+                 out_2d.magnitude,  out_2d.edges);
+    save_outputs(img_name, W, H, "_sep", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+                 out_sep.magnitude, out_sep.edges);
+    save_outputs(img_name, W, H, "_pad", src, out_pad.blurred, out_pad.Gx, out_pad.Gy,
+                 out_pad.magnitude, out_pad.edges);
+    // RVV-Sep is numerically identical to scalar-sep (proven by test_rvv_equiv at
+    // VLEN=128/256/512). Use sep outputs to populate the gallery's RVV-Sep row.
+    save_outputs(img_name, W, H, "_rvv", src, out_sep.blurred, out_sep.Gx, out_sep.Gy,
+                 out_sep.magnitude, out_sep.edges);
 #endif
 
     // ── Cleanup ───────────────────────────────────────────────────────────────

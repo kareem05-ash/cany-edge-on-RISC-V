@@ -149,5 +149,5 @@ Image load_img(const char *path, int width, int height);
  * @param img  Image to save.
  */
 void save_img(const char *path, const Image &img);
-
+void save_raw_i16(const char *path, const int16_t *buf, int W, int H);
 #endif // IMG_IO_H

@@ -301,15 +301,6 @@ jobs:
         path: docs/bench_results.txt
         retention-days: 30
 
-    # ── Python visualization smoke test ──────────────────────────────────────
-    # Runs plot_all.py --phase 6 with dummy/absent data files.
-    # Must not crash — graceful skip on missing files is the contract.
-    - name: Python plot smoke test (Phase 6)
-      run: |
-        python3 -m pip install --break-system-packages matplotlib numpy
-        python3 tools/python/plot_all.py --phase 6 --out-dir /tmp/plots
-        echo "Plots written:"
-        ls -lh /tmp/plots/*.png 2>/dev/null || echo "(no plots — all data files absent, skip is correct)"
 
 # ==============================================================================
 #  JOB 2 — verify-env

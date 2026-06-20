@@ -47,9 +47,19 @@ void gaussian_blur(const Image &src, Image &dst) {
 //   arithmetic savings; on QEMU (which does not model cache) it will still
 //   measure faster because QEMU counts translated instructions, not memory stalls.
 //
-// Divisor: each pass divides by 17, so the combined divisor is 17x17=289,
-// slightly different from the 2-D kernel's 273. This means separable output
-// may differ from 2-D output by +-1 LSB, which is acceptable (verified in tests).
+// Divisor: each pass divides by 17, so the combined divisor is 17×17=289,
+// rather than the 2-D kernel's true Gaussian normalization divisor of 273.
+// The 289/273 ≈ 1.059 mismatch means separable output may differ from 2-D
+// output by up to ±3 LSB (not ±1 LSB as in other comparisons).
+//
+// NOTE: The unit tests for GaussianEquivalence use tolerance=3 (not ±1) to
+// accommodate this systematic scale difference. This wider tolerance is
+// intentional and is caused solely by the 289-vs-273 divisor mismatch, not
+// by floating-point error or rounding. For edge detection, this ±3 LSB error
+// is acceptable because NMS and thresholding operate on relative gradient
+// ordering, not absolute pixel values. If exact 2-D equivalence is required,
+// replace the two per-pass /17 divisions with a single /273 on the final
+// output (at the cost of needing a wider intermediate accumulator).
 
 void gaussian_blur_separable(const Image &src, Image &dst) {
     const int W = src.width;

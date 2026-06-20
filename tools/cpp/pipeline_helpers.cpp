@@ -96,13 +96,17 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    out.blurred     = blurred;
-    out.mag         = mag;
-    out.out_refined = hys_out;
+    uint8_t *blurred_buf = new uint8_t[W * H];
+    memcpy(blurred_buf, blurred->data, W * H);
+    delete blurred;
+
+    out.blurred   = blurred_buf;
+    out.Gx        = Gx;
+    out.Gy        = Gy;
+    out.magnitude = mag;
+    out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] Gx;
-    delete[] Gy;
     delete[] dir;
     delete[] nms_out;
     delete[] dthr_out;
@@ -116,7 +120,8 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
 // ====================================================================================================
 #ifndef __riscv
 void save_outputs(const char *img_name, int W, int H, const char *suffix, const Image &src,
-                  const Image &blurred, const uint8_t *mag, const uint8_t *out_refined) {
+                  const uint8_t *blurred, const int16_t *Gx, const int16_t *Gy,
+                  const uint8_t *magnitude, const uint8_t *edges) {
     char path[512];
 
     snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_src.raw", img_name, W, H, suffix);
@@ -124,26 +129,38 @@ void save_outputs(const char *img_name, int W, int H, const char *suffix, const 
     printf("    > Saved: %s\n", path);
 
     snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_blurred.raw", img_name, W, H, suffix);
-    save_img(path, blurred);
+    save_raw_u8(path, blurred, W, H);
+    printf("    > Saved: %s\n", path);
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_gx.raw", img_name, W, H, suffix);
+    save_raw_i16(path, Gx, W, H);
+    printf("    > Saved: %s\n", path);
+
+    snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_gy.raw", img_name, W, H, suffix);
+    save_raw_i16(path, Gy, W, H);
     printf("    > Saved: %s\n", path);
 
     snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_mag.raw", img_name, W, H, suffix);
-    save_raw_u8(path, mag, W, H);
+    save_raw_u8(path, magnitude, W, H);
     printf("    > Saved: %s\n", path);
 
     snprintf(path, sizeof(path), "imgs/%s_%dx%d%s_refined.raw", img_name, W, H, suffix);
-    save_raw_u8(path, out_refined, W, H);
+    save_raw_u8(path, edges, W, H);
     printf("    > Saved: %s\n", path);
 }
 #endif // __riscv
 
 void free_pipeline_outputs(PipelineOutputs &p) {
-    delete p.blurred;
-    delete[] p.mag;
-    delete[] p.out_refined;
+    delete[] p.blurred;
+    delete[] p.Gx;
+    delete[] p.Gy;
+    delete[] p.magnitude;
+    delete[] p.edges;
     p.blurred = nullptr;
-    p.mag = nullptr;
-    p.out_refined = nullptr;
+    p.Gx = nullptr;
+    p.Gy = nullptr;
+    p.magnitude = nullptr;
+    p.edges = nullptr;
 }
 
 void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
@@ -187,6 +204,24 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[2].name    = "Magnitude (RVV L1)";
     results[2].time_us = timer_stop(&t) / n_iter;
 
+    // ── [Stage 2b] Magnitude (RVV L2) — timed separately for comparison ──
+    // compute_magnitude_l2_rvv uses vfsqrt.v (vector float sqrt) to replace
+    // the per-pixel scalar sqrtf() calls in the scalar L2 path.
+    uint8_t *mag_l2 = new uint8_t[W * H];
+    timer_start(&t);
+    for (int i = 0; i < n_iter; i++)
+    #ifdef __riscv
+        compute_magnitude_l2_rvv(Gx, Gy, mag_l2, W, H);
+    #else
+        compute_magnitude(Gx, Gy, mag_l2, W, H, MagMethod::L2);
+    #endif
+    // Note: results[] array is sized 7; L2 time printed separately, not stored.
+    // The primary pipeline output (mag) continues to use L1; mag_l2 used for
+    // comparison reporting only.
+    printf("  Magnitude (RVV L2):  %.1f us/iter\n",
+           (double)timer_stop(&t) / n_iter);
+    delete[] mag_l2;
+
     // ── [Stage 3] Direction — scalar (not hot) ────────────────────────────
     uint8_t *dir = new uint8_t[W * H];
     timer_start(&t);
@@ -226,13 +261,17 @@ void run_pipeline_rvv(const Image &src, int W, int H, int n_iter,
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    out.blurred     = blurred;
-    out.mag         = mag;
-    out.out_refined = hys_out;
+    uint8_t *blurred_buf = new uint8_t[W * H];
+    memcpy(blurred_buf, blurred->data, W * H);
+    delete blurred;
+
+    out.blurred   = blurred_buf;
+    out.Gx        = Gx;
+    out.Gy        = Gy;
+    out.magnitude = mag;
+    out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] Gx;
-    delete[] Gy;
     delete[] dir;
     delete[] nms_out;
     delete[] dthr_out;
@@ -328,13 +367,17 @@ void run_pipeline_rvv_sep(const Image &src, int W, int H, int n_iter,
     results[6].time_us = timer_stop(&t) / n_iter;
 
     // ── Pass ownership to caller ──────────────────────────────────────────
-    out.blurred     = blurred;
-    out.mag         = mag;
-    out.out_refined = hys_out;
+    uint8_t *blurred_buf = new uint8_t[W * H];
+    memcpy(blurred_buf, blurred->data, W * H);
+    delete blurred;
+
+    out.blurred   = blurred_buf;
+    out.Gx        = Gx;
+    out.Gy        = Gy;
+    out.magnitude = mag;
+    out.edges     = hys_out;
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    delete[] Gx;
-    delete[] Gy;
     delete[] dir;
     delete[] nms_out;
     delete[] dthr_out;

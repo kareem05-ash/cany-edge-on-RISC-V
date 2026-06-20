@@ -74,9 +74,11 @@ struct SweepResult {
  * @see free_pipeline_outputs()
  */
 struct PipelineOutputs {
-    Image   *blurred;      ///< Output of the Gaussian stage. Used for Sobel re-run and saving.
-    uint8_t *mag;          ///< Raw magnitude map [0..255] before edge refinement.
-    uint8_t *out_refined;  ///< Final edge map after hysteresis — values in {0, 255}.
+    uint8_t *blurred;
+    uint8_t *magnitude;
+    uint8_t *edges;
+    int16_t *Gx; 
+    int16_t *Gy; 
 };
 
 
@@ -327,13 +329,16 @@ void run_pipeline(const Image &src, int W, int H, int n_iter, int gauss_mode, bo
  * @param W          Image width.  @param H Image height.
  * @param suffix     Method suffix: `""`, `"_sep"`, or `"_pad"`.
  * @param src        Original source image.
- * @param blurred    Gaussian-blurred image.
- * @param mag        Raw magnitude buffer before edge refinement.
- * @param out_refined Final hysteresis output.
+ * @param blurred    Gaussian-blurred image buffer (raw uint8_t, W*H elements).
+ * @param Gx         Horizontal Sobel gradient buffer (signed 16-bit).
+ * @param Gy         Vertical Sobel gradient buffer (signed 16-bit).
+ * @param magnitude  Raw magnitude buffer before edge refinement.
+ * @param edges      Final hysteresis output.
  */
 void save_outputs(const char *img_name, int W, int H, const char *suffix,
-                  const Image &src, const Image &blurred,
-                  const uint8_t *mag, const uint8_t *out_refined);
+                  const Image &src, const uint8_t *blurred,
+                  const int16_t *Gx, const int16_t *Gy,
+                  const uint8_t *magnitude, const uint8_t *edges);
 #endif // !__riscv
 
 /**
