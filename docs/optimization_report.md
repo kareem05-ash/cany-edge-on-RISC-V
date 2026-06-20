@@ -16,7 +16,7 @@ At optimization level **-O0**, the padded-Gaussian pipeline variant took **229,8
 
 For comparison, the standard 2-D Gaussian variant (`bench_results_2d.txt`) is dominated even more heavily by the convolution itself: Gaussian (2D) alone is **201,811 µs**, **60.1%** of a 335,571 µs total. Gaussian and Sobel together account for the large majority of -O0 runtime regardless of which Gaussian variant is used — these are the early convolution stages and the main bottleneck before any optimization.
 
-![Compiler Optimization Sweep](compiler_sweep.png)
+![Compiler Optimization Sweep](plots/optimization_journey.png)
 
 ## 2 — Compiler Optimization Sweep
 
@@ -36,7 +36,7 @@ For comparison, the standard 2-D Gaussian variant (`bench_results_2d.txt`) is do
 
 **-O3 regression analysis (Magnitude and Direction):** To understand why `-O3` was slower than `-O2` for these two stages, the compiled binaries were disassembled with `riscv64-unknown-elf-objdump -d`. For `compute_magnitude`, `-O3` aggressively unrolled the two-pass loop (pass 1: find max; pass 2: normalize), producing a large unrolled block with many more instructions per iteration than the `-O2` output. On real hardware, this would amortize branch overhead and improve ILP; on QEMU's DBT (dynamic binary translation) engine, larger translation blocks carry higher translation cost, and QEMU does not model out-of-order execution or branch prediction — so the unrolled version is slower in the emulator than the compact `-O2` version. For `compute_direction`, `-O3` inlined and aggressively rescheduled the integer cross-multiply comparisons (`ay*5 < ax*2`), reordering instructions in a way that increased register live ranges without any QEMU-visible benefit. Neither regression would be expected on real RISC-V hardware, where the unrolling and scheduling would be beneficial; both are artifacts of QEMU's instruction-count-based cost model rather than a real performance property of the generated code.
 
-![Speedup Normalized](speedup_normalized.png)
+![Speedup Normalized](plots/speedup_normalized.png)
 
 ## 3 — Auto-vectorization Analysis
 
@@ -112,8 +112,8 @@ Applying Amdahl's Law, `S_max = 1 / (1 - p)`, to each of the three hotspot stage
 
 Direction was deliberately left as scalar code rather than ported to RVV intrinsics. At VLEN=256 it accounts for only **2.1%** of total runtime, which places its Amdahl ceiling at `S_max = 1 / (1 - 0.021) ≈ **1.02×**`, close enough to 1.0× that even a perfect, zero-cost vectorization of Direction could not meaningfully move total pipeline runtime. Given that arctangent-based direction computation is also one of the more awkward operations to vectorize efficiently with RVV (it has no single corresponding vector instruction and would require either a polynomial approximation or a scalar fallback loop inside the vector kernel), the expected engineering effort was judged not to be justified by the negligible theoretical payoff, and Direction was left scalar by deliberate choice rather than oversight.
 
-![Hotspot Pie Chart](hotspot_pie.png)
-![Amdahl Ceiling](amdahl_ceiling.png)
+![Hotspot Pie Chart](plots/hotspot_pie.png)
+![Amdahl Ceiling](plots/amdahl_ceiling.png)
 
 ## 8 — RVV Optimization Results
 
@@ -146,7 +146,7 @@ To verify the overhead hypothesis, the Gaussian RVV binary was disassembled with
 
 **L2 magnitude RVV implementation:** `compute_magnitude_l2_rvv()` was added in `src/mag_dir_rvv.cpp`. It uses `vfwcvt` (i16→f32 widening convert), `vfmul`+`vfmacc` for Gx²+Gy², `vfsqrt.v` (one vector instruction replacing vl scalar sqrtf calls per strip), and `vfredmax` for the global max reduction. The LMUL chain uses i16mf2 → f32m1 (fractional LMUL avoids LMUL=2 for the f32 accumulator, leaving more registers available). The function is registered in `include/mag_dir_rvv.h` and timed separately in `run_pipeline_rvv()` for comparison against the L1 path.
 
-![VLEN Scaling](vlen_scaling.png)
+![VLEN Scaling](plots/vlen_scaling.png)
 
 ### 8b — LMUL Sweep (Gaussian Only)
 
@@ -169,8 +169,8 @@ To verify the overhead hypothesis, the Gaussian RVV binary was disassembled with
 
 The likely explanation is register pressure crossing over at large VLEN: at small VLEN (128, 256), each logical vector register holds relatively few elements, so grouping registers together via higher LMUL (m2, m4) helps amortize per-iteration loop overhead (fewer `vsetvli` calls, fewer strip-mining iterations) without yet causing register spills, since 32 physical vector registers divided by LMUL still leaves a workable number of logical registers (16 at m2, 8 at m4). At VLEN=512, however, each vector register already holds many more elements per instruction, so the per-iteration overhead that higher LMUL amortizes is a smaller fraction of total work to begin with, while the register-pressure cost of higher LMUL (fewer logical registers available to the compiler for the kernel's multiple in-flight accumulators) remains the same in relative terms — so the tradeoff that favored m2/m4 at small VLEN flips against them at VLEN=512. This is a plausible explanation for the *direction* of the reversal, but it has not been confirmed with a disassembly-level register-spill analysis at VLEN=512 the way the VLEN=256 Gaussian RVV-vs-scalar gap was investigated in 8a, and should be treated as the most likely explanation rather than a verified one.
 
-![LMUL Sweep](lmul_sweep.png)
-![Optimization Journey](optimization_journey.png)
+![LMUL Sweep](plots/lmul_sweep.png)
+![Optimization Journey](plots/optimization_journey.png)
 
 ## 9 — Limitations and Discussion
 
