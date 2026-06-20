@@ -64,12 +64,15 @@ def load_col(base, suffix, col, W, H):
 
 
 def main():
-    if len(sys.argv) != 4:
-        print(f'Usage: python3 {sys.argv[0]} <W> <H> <image_index>')
+    if len(sys.argv) < 4 or len(sys.argv) > 5:
+        print(f'Usage: python3 {sys.argv[0]} <W> <H> <image_index> [name]')
         sys.exit(1)
-
     W, H, I = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
-    base    = img_name(W, H, I)
+    # Optional override — required for I=7 (external images)
+    if len(sys.argv) == 5:
+        base = f'{sys.argv[4]}_{W}x{H}'
+    else:
+        base = img_name(W, H, I)
 
     fig, axes = plt.subplots(len(ROWS), len(COLS), figsize=(18, 12))
 

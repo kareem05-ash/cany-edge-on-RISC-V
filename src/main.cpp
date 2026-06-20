@@ -44,12 +44,13 @@ static const char *IMG_NAMES[] = {
     "horizontal_edge", // 3
     "checkerboard",    // 4
     "impulse",         // 5
-    "gradient_ramp"    // 6
+    "gradient_ramp",   // 6
+    "external"         // 7
 };
-static const int N_IMGS = 7;
+static const int N_IMGS = 8;
 
 // ── Generate image by index ───────────────────────────────────────────────────
-static Image gen_by_index(int I, int W, int H) {
+static Image gen_by_index(int I, int W, int H, const char *ext_path = nullptr) {
     switch (I) {
     case 0:
         return gen_white_square(W, H);
@@ -65,9 +66,11 @@ static Image gen_by_index(int I, int W, int H) {
         return gen_impulse(W, H);
     case 6:
         return gen_gradient_ramp(W, H);
+    case 7:
+        if (!ext_path) { fprintf(stderr, "I=7 requires a file path (argv[5])\n"); exit(1); }
+        return load_img(ext_path, W, H);   // uses existing img_io loader
     default:
-        fprintf(stderr, "Error: invalid image index %d\n", I);
-        exit(1);
+        fprintf(stderr, "Error: invalid image index %d\n", I); exit(1);
     }
 }
 // ====================================================================================================
@@ -75,35 +78,29 @@ static Image gen_by_index(int I, int W, int H) {
 // ====================================================================================================
 int main(int argc, char *argv[]) {
 
-    // ── Arguments ─────────────────────────────────────────────────────────────
-    if (argc != 5) {
+// ── Arguments ────────────────────────────────────────────────────────────
+    if (argc < 5 || argc > 6) {
         fprintf(stderr,
-                "Usage: %s <W> <H> <I> <VLEN>\n"
-                "  W, H : image dimensions in pixels\n"
-                "  I    : image index\n"
-                "         0=white_square  1=circle        2=vertical_edge\n"
-                "         3=hor_edge      4=checkerboard  5=impulse\n"
-                "         6=gradient_ramp\n"
-                "  VLEN : 128 | 256 | 512\n",
-                argv[0]);
+            "Usage: %s <W> <H> <I> <VLEN> [file.raw]\n"
+            "  I=7 : load external raw file — file.raw required\n", argv[0]);
         return 1;
     }
+    const int   W    = atoi(argv[1]);
+    const int   H    = atoi(argv[2]);
+    const int   I    = atoi(argv[3]);
+    const int   VLEN = atoi(argv[4]);
+    const char *ext_path = (argc == 6) ? argv[5] : nullptr;
 
-    const int W    = atoi(argv[1]);
-    const int H    = atoi(argv[2]);
-    const int I    = atoi(argv[3]);
-    const int VLEN = atoi(argv[4]);
-
-    if (W <= 0 || H <= 0) {
-        fprintf(stderr, "Error: W and H must be positive integers.\n");
-        return 1;
+    // Use the stem of the external filename as img_name so outputs are named sensibly
+    static char ext_name[256] = "external";
+    if (I == 7 && ext_path) {
+        const char *slash = strrchr(ext_path, '/');
+        const char *base  = slash ? slash + 1 : ext_path;
+        strncpy(ext_name, base, sizeof(ext_name) - 1);
+        // strip .raw extension
+        char *dot = strrchr(ext_name, '.'); if (dot) *dot = '\0';
     }
-    if (I < 0 || I >= N_IMGS) {
-        fprintf(stderr, "Error: I must be in [0, %d].\n", N_IMGS - 1);
-        return 1;
-    }
-
-    const char *img_name   = IMG_NAMES[I];
+    const char *img_name = (I == 7) ? ext_name : IMG_NAMES[I];
     const int   ITERATIONS = 100;
 
     // ── Banner ────────────────────────────────────────────────────────────────
@@ -155,7 +152,7 @@ int main(int argc, char *argv[]) {
 
     // ── Generate source image ─────────────────────────────────────────────────
     printf("[Step 1] Generating source image ...\n");
-    Image src = gen_by_index(I, W, H);
+    Image src = gen_by_index(I, W, H, ext_path);
     printf("   > Generated: %s (%dx%d)\n", img_name, W, H);
 
     // ── [Step 2] 2D Gaussian ──────────────────────────────────────────────────

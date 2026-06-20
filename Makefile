@@ -43,6 +43,7 @@ W    ?= 256
 H    ?= 256
 I    ?= 0
 VLEN ?= 256
+NAME ?= "external"
 
 # ─── Python interpreter ──────────────────────────────────────────────────────
 PYTHON := python3
@@ -180,6 +181,15 @@ canny_rv: $(BLD_RV)/canny
 run_host: $(BLD_HOST)/canny
 	@echo "=== Running on host ==="
 	./$(BLD_HOST)/canny $(W) $(H) $(I) $(VLEN)
+
+# make run_host_ext FILE=path/to/photo.png
+run_host_ext: $(BLD_HOST)/canny
+	$(eval CONV := $(shell python3 tools/python/to_raw.py $(FILE)))
+	$(eval EW   := $(word 1, $(CONV)))
+	$(eval EH   := $(word 2, $(CONV)))
+	$(eval ERAW := $(word 3, $(CONV)))
+	@echo "=== External image: $(ERAW)  $(EW)x$(EH) ==="
+	./$(BLD_HOST)/canny $(EW) $(EH) 7 $(VLEN) $(ERAW)
 
 # ===========================================================================================
 # RUN — RISC-V TARGET (QEMU)
@@ -541,7 +551,7 @@ imgs_host: $(BLD_HOST)/canny
 # For rows 1-3 only:  make imgs_host   then  make plot_pipeline
 # For all 4 rows:     make run_target  then  make plot_pipeline
 plot_pipeline:
-	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I)
+	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I) $(NAME)
 	@cp $(DOCS_DIR)/pipeline_gallery.png $(PLOTS_DIR)/
 	@echo "   > Gallery -> $(PLOTS_DIR)/pipeline_gallery.png"
 

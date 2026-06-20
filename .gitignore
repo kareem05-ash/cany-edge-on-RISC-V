@@ -25,3 +25,8 @@ venv/
 chore-repo-improvements.md
 # Generated figures and timing data
 patch_*.py
+
+*.png
+*.jpeg
+*.jpg
+*.webp
