@@ -8,6 +8,54 @@ A from-scratch C++17 implementation of the Canny edge detection pipeline targeti
 
 ---
 
+## Algorithm Overview
+
+Canny Edge Detection is a multi-stage image processing pipeline. Our implementation maps directly to 7 timed stages:
+
+```
+Input Image (raw grayscale, 512×512)
+      │
+      ▼
+┌─────────────────────────┐
+│  1. Gaussian Blur        │  5×5 kernel, σ≈1.0 — noise suppression
+│     3 variants:          │
+│     · 2D convolution     │  25 MACs/pixel, boundary-checked
+│     · Separable 1D       │  10 MACs/pixel, two-pass
+│     · Padded (no-branch) │  25 MACs/pixel, vectorization-friendly
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  2. Sobel Gradients      │  3×3 Kx, Ky → Gx[n], Gy[n]  (int16, SoA)
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  3. Gradient Magnitude   │  L1: |Gx|+|Gy|  or  L2: √(Gx²+Gy²)
+│                          │  Normalized to [0, 255]
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  4. Gradient Direction   │  Quantized to {0°, 45°, 90°, 135°}
+│                          │  No atan2 — integer cross-multiplication
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  5. Non-Maximum          │  Thin edges to 1-pixel ridges
+│     Suppression (NMS)    │
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  6. Double Thresholding  │  STRONG(255) / WEAK(128) / OFF(0)
+└──────────┬──────────────┘
+           ▼
+┌─────────────────────────┐
+│  7. Hysteresis           │  BFS from STRONG seeds → promote connected WEAKs
+└──────────┬──────────────┘
+           ▼
+Output Edge Map (binary, {0, 255})
+```
+
+---
+
 ## Repository Structure
 
 ```
