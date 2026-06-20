@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/kareem05-ash/cany-edge-on-RISC-V/actions/workflows/ci.yml/badge.svg)
 
-A from-scratch C++17 implementation of the Canny edge detection pipeline targeting the **RISC-V RV64GCV** ISA, with hand-written **RVV 1.0 vector intrinsics** for the two hottest stages. The pipeline runs under QEMU user-mode emulation and is progressively optimized from scalar baseline to vector-length-agnostic intrinsics. The Gaussian stage achieves **6.12×** speedup over scalar `-O0` at VLEN=256 (see [Performance Results](#performance-results)).
+A from-scratch C++17 implementation of the Canny edge detection pipeline targeting the **RISC-V RV64GCV** ISA, with hand-written **RVV 1.0 vector intrinsics** for the two hottest stages. The pipeline runs under QEMU user-mode emulation and is progressively optimized from scalar baseline to vector-length-agnostic intrinsics. The Gaussian stage achieves **6.45×** speedup over scalar `-O0` at VLEN=256 (see [Performance Results](#performance-results)).
 
 ![Pipeline gallery — src → blur → Gx → Gy → magnitude → edges, one row per Gaussian variant](docs/plots/pipeline_gallery.png)
 
@@ -44,8 +44,8 @@ canny-edge-riscv/
 
 | Dependency | Version | Notes |
 |---|---|---|
-| RISC-V GNU Toolchain | GCC 14.x | Built with `--with-arch=rv64gcv`; see `scripts/setup.sh` |
-| QEMU | 9.x | `riscv64-linux-user` mode only |
+| RISC-V GNU Toolchain | GCC 13.x–15.x (verified: 15.2.0) | Built with `--with-arch=rv64gcv`; see `scripts/setup.sh` |
+| QEMU | 9.x+ (verified: 11.0.50, dev build) | `riscv64-linux-user` mode only |
 | Python | 3.10+ | With `numpy`, `matplotlib` |
 | GoogleTest | any recent | Host-only, for `make test` |
 
@@ -111,18 +111,22 @@ Runtime variables: `W` (width, default 256), `H` (height, default 256), `I` (ima
 
 | Method | VLEN | Time (µs) | Speedup vs scalar -O0 |
 |---|---|---|---|
-| Scalar 2-D `-O0` | — | 49,321 | 1.0× |
-| Scalar 2-D `-O3` | — | 5,371 | 9.18× |
-| Scalar Separable `-O3` | — | 119,815 | 0.41× |
-| Scalar Padded `-O3` (auto-vec) | — | 5,150 | 9.56× |
-| RVV Padded m2 | 128 | 29,882 | 1.65× |
-| RVV Padded m2 | 256 | 22,217 | 2.22× |
-| RVV Separable | 256 | 19,576 | 2.52× |
-| RVV Separable | 512 | 19,818 | 2.49× |
+| Scalar 2-D `-O0` | — | 201,811 | 1.00× |
+| Scalar 2-D `-O3` | — | 259,764 | 0.78× (regresses — see note) |
+| Scalar Separable `-O3` | — | 101,611 | 1.99× |
+| Scalar Padded `-O3` (auto-vec) | — | 11,647 | 17.33× |
+| RVV Padded m2 | 128 | 62,216 | 3.24× |
+| RVV Padded m2 | 256 | 45,423 | 4.44× |
+| RVV Padded m2 | 512 | 40,240 | 5.02× |
+| RVV Separable | 128 | 43,169 | 4.67× |
+| RVV Separable | 256 | 31,306 | **6.45×** |
+| RVV Separable | 512 | 34,069 | 5.92× |
 
-> Numbers sourced from `docs/bench_results.txt` and `docs/timing_rvv.txt` — run `make sweep` then `make plots` to regenerate.
+> `-O3` regresses vs `-O0` for the 2-D kernel specifically: its nested kernel-row/kernel-col loop structure cannot be auto-vectorized at any optimization level (see Auto-vectorization Analysis in the optimization report), so `-O3`'s extra unrolling/scheduling adds overhead under QEMU's instruction-count cost model with no vectorization payoff to offset it — the same mechanism documented there for Magnitude/Direction.
+>
+> Numbers sourced from `docs/bench_results_2d.txt`, `docs/bench_results_sep.txt`, `docs/bench_results_padded.txt`, `docs/timing_vlen{128,256,512}.txt`, and the RVV-Separable `[Step 6]` pipeline output — run `make reports` to regenerate.
 
-![Optimization journey — Gaussian stage from scalar -O0 to RVV-Separable VLEN=512](docs/plots/speedup_normalized.png)
+![Optimization journey — Gaussian stage from scalar -O0 to RVV-Separable VLEN=256](docs/plots/speedup_normalized.png)
 
 ---
 
