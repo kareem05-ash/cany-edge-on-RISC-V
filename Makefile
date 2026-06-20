@@ -183,32 +183,29 @@ run_host: $(BLD_HOST)/canny
 
 # ===========================================================================================
 # RUN — RISC-V TARGET (QEMU)
-# Saves: docs/timing_target.txt   docs/timing_rvv.txt     docs/timing_padded.txt
-#        docs/timing_vlen<N>.txt  docs/speedup_target.txt
+# Writes imgs/*_{}_sep,_pad,_rvv}.raw as a side effect of running the pipeline.
+# Saves: docs/timing_2d.txt  docs/timing_separable.txt  docs/timing_padded.txt
+#        docs/timing_rvv.txt docs/timing_rvv_sep.txt    docs/speedup_rvv.txt
 # ===========================================================================================
 run_target: $(BLD_RV)/canny
 	@echo "=== Running on RISC-V target (VLEN=$(VLEN)) ==="
-	@mkdir -p $(DOCS_DIR)
-	@OUTPUT=$$(qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
-		$(BLD_RV)/canny $(W) $(H) $(I) $(VLEN)); \
-	echo "$$OUTPUT"; \
-	echo "$$OUTPUT" | awk \
-		'/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
-		> $(DOCS_DIR)/timing_target.txt; \
-	cp $(DOCS_DIR)/timing_target.txt $(DOCS_DIR)/timing_rvv.txt; \
-	cp $(DOCS_DIR)/timing_target.txt $(DOCS_DIR)/timing_vlen$(VLEN).txt; \
-	echo "$$OUTPUT" | awk \
-		'/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
-		> $(DOCS_DIR)/timing_padded.txt; \
-	echo "$$OUTPUT" | awk \
-		'/^Stage[[:space:]]+Scalar/{p=1} p{print} p && /^TOTAL/{exit}' \
-		> $(DOCS_DIR)/speedup_target.txt; \
-	echo ""; \
-	echo "   > Timing  saved -> $(DOCS_DIR)/timing_target.txt"; \
-	echo "   > RVV     saved -> $(DOCS_DIR)/timing_rvv.txt"; \
-	echo "   > Padded  saved -> $(DOCS_DIR)/timing_padded.txt"; \
-	echo "   > VLEN    saved -> $(DOCS_DIR)/timing_vlen$(VLEN).txt"; \
-	echo "   > Speedup saved -> $(DOCS_DIR)/speedup_target.txt"
+	@mkdir -p $(DOCS_DIR) $(IMGS_DIR)
+	qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) \
+		$(BLD_RV)/canny $(W) $(H) $(I) $(VLEN) \
+		| tee /tmp/canny_output.txt
+	@awk '/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		/tmp/canny_output.txt > $(DOCS_DIR)/timing_rvv.txt
+	@cp $(DOCS_DIR)/timing_rvv.txt $(DOCS_DIR)/timing_vlen$(VLEN).txt
+	@awk '/^\[Step 4\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
+		/tmp/canny_output.txt > $(DOCS_DIR)/timing_padded.txt
+	@awk '/^Stage[[:space:]]+Scalar/{p=1} p{print} p && /^TOTAL/{exit}' \
+		/tmp/canny_output.txt > $(DOCS_DIR)/speedup_target.txt
+	@echo ""
+	@echo "   > imgs/       written -> $(IMGS_DIR)/"
+	@echo "   > Timing  saved -> $(DOCS_DIR)/timing_rvv.txt"
+	@echo "   > Padded  saved -> $(DOCS_DIR)/timing_padded.txt"
+	@echo "   > VLEN    saved -> $(DOCS_DIR)/timing_vlen$(VLEN).txt"
+	@echo "   > Speedup saved -> $(DOCS_DIR)/speedup_target.txt"
 
 # ===========================================================================================
 # RUN ALL VLEN (stdout only)
@@ -504,8 +501,8 @@ lmul_sweep: $(BLD_RV)/lmul_sweep
 # ===========================================================================================
 # PHASE 7 — Visualization (individual plot targets)
 # ===========================================================================================
-plot_pipeline:
-	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I)
+# plot_pipeline:
+# 	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I)
 
 plot_hotspot:
 	$(PYTHON) tools/python/plot_hotspot.py \
@@ -533,6 +530,20 @@ plot_amdahl:
 
 plot_diff:
 	$(PYTHON) tools/python/plot_diff.py $(W) $(H) $(I)
+
+# Generate imgs/ for rows 1-3 (2-D, Separable, Padded) using host binary — no QEMU needed
+imgs_host: $(BLD_HOST)/canny
+	@mkdir -p $(IMGS_DIR)
+	./$(BLD_HOST)/canny $(W) $(H) $(I) $(VLEN)
+	@echo "   > Scalar imgs written to $(IMGS_DIR)/"
+
+# Pipeline gallery — requires imgs/ to be populated first
+# For rows 1-3 only:  make imgs_host   then  make plot_pipeline
+# For all 4 rows:     make run_target  then  make plot_pipeline
+plot_pipeline:
+	$(PYTHON) tools/python/plot_pipeline.py $(W) $(H) $(I)
+	@cp $(DOCS_DIR)/pipeline_gallery.png $(PLOTS_DIR)/
+	@echo "   > Gallery -> $(PLOTS_DIR)/pipeline_gallery.png"
 
 # ===========================================================================================
 # PHASE 7 — plots: regenerate all docs/plots/*.png from existing docs/*.txt
@@ -650,4 +661,4 @@ clean: clean_bin clean_imgs clean_docs
         plots reports                                                           \
         format docs package                                                     \
         setup verify                                                            \
-        clean_bin clean_imgs clean_docs clean
+        clean_bin clean_imgs clean_docs clean imgs_host
