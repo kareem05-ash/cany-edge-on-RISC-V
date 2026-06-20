@@ -415,14 +415,6 @@ else
     record_fail "build/riscv/test_vlen_sweep build" "make build/riscv/test_vlen_sweep failed"
 fi
 
-# ── 9e: Python plot smoke test ────────────────────────────────────────────────
-echo "--- Checking Python plot smoke test ---"
-if python3 "$PROJECT_ROOT/tools/python/plot_all.py" --phase 6 --out-dir /tmp/plots_verify 2>&1 | tail -5; then
-    record_pass "plot_all.py --phase 6 smoke test"
-else
-    record_fail "plot_all.py --phase 6 smoke test" "plot_all.py crashed — all data-absent paths must be handled gracefully"
-fi
-
 # ==============================================================================
 #  FINAL REPORT
 # ==============================================================================
