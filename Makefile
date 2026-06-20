@@ -502,7 +502,7 @@ lmul_sweep: $(BLD_RV)/lmul_sweep
 	@for LMUL in m1 m2 m4; do \
 		echo ""                    | tee -a $(DOCS_DIR)/lmul_gaussian.txt; \
 		echo "--- LMUL=$$LMUL ---" | tee -a $(DOCS_DIR)/lmul_gaussian.txt; \
-		qemu-riscv64 -cpu rv64,v=true,vlen=256 $(BLD_RV)/lmul_sweep $$LMUL $(W) $(H) \
+		qemu-riscv64 -cpu rv64,v=true,vlen=$(VLEN) $(BLD_RV)/lmul_sweep $$LMUL $(W) $(H) \
 		| tee -a $(DOCS_DIR)/lmul_gaussian.txt; \
 	done
 	@echo ""
