@@ -472,7 +472,7 @@ vlen_sweep: $(BLD_RV)/canny
 	@for V in 128 256 512; do \
 		echo ""                 | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
 		echo "--- VLEN=$$V ---" | tee -a $(DOCS_DIR)/vlen_sweep.txt; \
-		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/canny $(W) $(H) $(I) \
+		qemu-riscv64 -cpu rv64,v=true,vlen=$$V $(BLD_RV)/canny $(W) $(H) $(I) $$V \
 		| awk '/^\[Step 5\]/{found=1} found && /^Stage/{p=1} p{print} p && /^TOTAL/{exit}' \
 		| tee -a $(DOCS_DIR)/vlen_sweep.txt \
 		         $(DOCS_DIR)/timing_vlen$$V.txt; \
